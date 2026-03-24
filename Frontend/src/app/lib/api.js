@@ -41,13 +41,18 @@ async function apiFetch(endpoint, options = {}) {
     throw new Error("Unauthorized — session expired");
   }
 
-  const data = await res.json();
+  const json = await res.json();
 
   if (!res.ok) {
-    throw new Error(data.error || data.message || `API error ${res.status}`);
+    throw new Error(json.error || json.message || `API error ${res.status}`);
   }
 
-  return data;
+  // Unwrap { success, data } envelope — return data array/object directly
+  if (json && json.success && json.data !== undefined) {
+    return json.data;
+  }
+
+  return json;
 }
 
 // Auth

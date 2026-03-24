@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getSocket } from "@/app/lib/socket";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
 
 /** Helper to build auth headers with JWT token */
 function authHeaders() {
@@ -72,7 +72,7 @@ export default function ViewReceipts() {
     }
 
     // Verify token with backend
-    const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+    const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
     fetch(`${API}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -94,8 +94,9 @@ export default function ViewReceipts() {
 
     fetch(`${API_BASE}/api/orders?status=completed&limit=500`, { headers: authHeaders() })
       .then((res) => res.json())
-      .then((data) => {
-        const orders = data.orders || data;
+      .then((raw) => {
+        const data = raw?.data ?? raw;
+        const orders = data?.orders || data;
         const mapped = Array.isArray(orders) ? orders.map((o) => ({ id: o._id || o.id, ...o })) : [];
         setReceipts(mapped);
         setLoading(false);

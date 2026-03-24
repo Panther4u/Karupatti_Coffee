@@ -38,7 +38,7 @@ import {
 } from "@/app/lib/api";
 import { queueOrder, getPendingCount, syncOrders } from "@/app/lib/offlineQueue";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
 const cleanUrl = (u) => (u ? u.replace(/[\r\n]+/g, "").trim().replace(/%20/g, " ") : "");
 // Product.type (1-13) → category name
 const categoryMap = {1:"Tea",2:"Coffee",3:"Dairy Products",4:"Snacks",5:"Evening Special",6:"Fresh Juice",7:"Cool Drinks",8:"Ice Cream",9:"Karupatti Ice Cream",10:"Karupatti Snacks",11:"Other Snacks",12:"Biscuits & Cakes",13:"Parcel"};
@@ -183,13 +183,16 @@ export default function OrderPage() {
         setSyncing(true);
         try {
           const results = await syncOrders(async (orderData) => {
+            const tk = localStorage.getItem("token");
+            const syncHdrs = { "Content-Type": "application/json" };
+            if (tk) syncHdrs["Authorization"] = `Bearer ${tk}`;
             const res = await fetch(`${API_BASE}/api/orders`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
+              method: "POST", headers: syncHdrs,
               body: JSON.stringify(orderData),
             });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            return data;
+            const json = await res.json();
+            if (json.error) throw new Error(json.error);
+            return json?.data ?? json;
           });
           const synced = results.filter((r) => r.success).length;
           setOfflineCount(0);
@@ -655,13 +658,17 @@ export default function OrderPage() {
 
     // === ONLINE MODE: send to API ===
     try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const hdrs = { "Content-Type": "application/json" };
+      if (token) hdrs["Authorization"] = `Bearer ${token}`;
       const res = await fetch(`${API_BASE}/api/orders`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: hdrs,
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (data.error) { setOrderError(data.error); setSaving(false); return; }
+      const json = await res.json();
+      if (json.error) { setOrderError(json.error); setSaving(false); return; }
+      const data = json?.data ?? json;
 
       setLastOrderId(data.id);
       setReceiptData({
@@ -944,20 +951,15 @@ export default function OrderPage() {
 
             {/* Quantity */}
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase">Quantity</label>
-              <div className="flex items-center gap-2">
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Quantity</label>
+              <div className="flex items-center justify-center gap-3">
                 <button onClick={() => setPendingQty((q) => Math.max(1, q - 1))}
-                  className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition font-bold text-lg">−</button>
+                  className="w-12 h-12 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-red-50 hover:text-red-500 transition font-bold text-xl active:scale-95 select-none">−</button>
                 <input type="number" value={pendingQty} onChange={(e) => setPendingQty(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-16 h-10 text-center text-lg font-bold border border-gray-200 rounded-lg focus:ring-2 focus:ring-coffee outline-none" autoFocus
+                  className="w-20 h-12 text-center text-2xl font-bold border-2 border-gray-200 rounded-xl focus:border-coffee focus:ring-2 focus:ring-coffee/20 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmAddToBill(); } if (e.key === "Escape") cancelAddItem(); }} />
                 <button onClick={() => setPendingQty((q) => q + 1)}
-                  className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition font-bold text-lg">+</button>
-                {/* Quick qty buttons */}
-                {[1, 2, 3, 5].map((n) => (
-                  <button key={n} onClick={() => setPendingQty(n)}
-                    className={`w-8 h-8 flex items-center justify-center rounded text-xs font-bold transition ${pendingQty === n ? "bg-coffee text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}>{n}</button>
-                ))}
+                  className="w-12 h-12 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-green-50 hover:text-green-500 transition font-bold text-xl active:scale-95 select-none">+</button>
               </div>
             </div>
 
@@ -1188,6 +1190,7 @@ function BillArea({
                   onChange={(e) =>
                     updateBillItem(idx, { qty: Math.max(1, parseInt(e.target.value) || 1) })
                   }
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); e.target.blur(); } }}
                   className="w-8 text-center text-xs border border-gray-200 rounded p-1"
                 />
                 <button
@@ -1337,7 +1340,7 @@ function PaymentPopup({
   const changeBreakdown = getChangeBreakdown(change);
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-0 lg:p-4" onKeyDown={handlePopupKeyDown} data-popup="payment">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-0 lg:p-4" onKeyDown={handlePopupKeyDown} data-popup="payment" tabIndex={-1} ref={(el) => el?.focus()}>
       <div className="bg-white w-full lg:w-[480px] rounded-t-2xl lg:rounded-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -1566,8 +1569,8 @@ function OrderCompletePopup({ receiptData, onNewOrder, onPrint }) {
 
 function TablePopup({ tables, tableNo, setTableNo, onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-4 lg:p-0">
-      <div className="bg-white rounded-t-2xl lg:rounded-2xl p-6 w-full lg:max-w-[500px]">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-4 lg:p-0" data-popup="table" onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); } }} tabIndex={-1} ref={(el) => el?.focus()}>
+      <div className="bg-white rounded-t-2xl lg:rounded-2xl p-6 w-full lg:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Select Table</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
@@ -1623,8 +1626,8 @@ function CustomerPopup({ customer, setCustomer, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-4 lg:p-0">
-      <div className="bg-white rounded-t-2xl lg:rounded-2xl p-6 w-full lg:max-w-[500px]">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-4 lg:p-0" data-popup="customer" onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); } }} tabIndex={-1} ref={(el) => el?.focus()}>
+      <div className="bg-white rounded-t-2xl lg:rounded-2xl p-6 w-full lg:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Customer</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
@@ -1644,7 +1647,9 @@ function CustomerPopup({ customer, setCustomer, onClose }) {
               placeholder="Phone number"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSearch(); } }}
               className="w-full p-2.5 border border-gray-300 rounded-lg"
+              autoFocus
             />
             <button
               onClick={handleSearch}
@@ -1677,8 +1682,8 @@ function DiscountPopup({
   onClose,
 }) {
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-4 lg:p-0">
-      <div className="bg-white rounded-t-2xl lg:rounded-2xl p-6 w-full lg:max-w-[500px]">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-4 lg:p-0" data-popup="discount" onKeyDown={(e) => { if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); onClose(); } }} tabIndex={-1} ref={(el) => el?.focus()}>
+      <div className="bg-white rounded-t-2xl lg:rounded-2xl p-6 w-full lg:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Discount</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
@@ -1745,8 +1750,8 @@ function DiscountPopup({
 
 function HeldOrdersPopup({ onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-4 lg:p-0">
-      <div className="bg-white rounded-t-2xl lg:rounded-2xl p-6 w-full lg:max-w-[500px]">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-4 lg:p-0" data-popup="held" onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); } }} tabIndex={-1} ref={(el) => el?.focus()}>
+      <div className="bg-white rounded-t-2xl lg:rounded-2xl p-6 w-full lg:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Held Orders</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
@@ -1773,8 +1778,8 @@ function HeldOrdersPopup({ onClose }) {
 
 function ShiftPopup({ shift, onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-4 lg:p-0">
-      <div className="bg-white rounded-t-2xl lg:rounded-2xl p-6 w-full lg:max-w-[500px]">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-4 lg:p-0" data-popup="shift" onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); } }} tabIndex={-1} ref={(el) => el?.focus()}>
+      <div className="bg-white rounded-t-2xl lg:rounded-2xl p-6 w-full lg:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Shift Info</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
@@ -1824,8 +1829,8 @@ function MobileBillPopup({
   onPay,
 }) {
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-0">
-      <div className="bg-white w-full rounded-t-2xl p-4 max-h-[80vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-0" data-popup="mobileBill" onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); } }} tabIndex={-1} ref={(el) => el?.focus()}>
+      <div className="bg-white w-full rounded-t-2xl p-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Current Bill</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
@@ -1867,6 +1872,7 @@ function MobileBillPopup({
                   onChange={(e) =>
                     updateBillItem(idx, { qty: Math.max(1, parseInt(e.target.value) || 1) })
                   }
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); e.target.blur(); } }}
                   className="w-8 text-center text-xs border border-gray-200 rounded p-1"
                 />
                 <button
@@ -2286,7 +2292,7 @@ function SalesSummaryPopup({ onClose }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState("");
-  const AB = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+  const AB = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
   const hd = () => { const t = localStorage.getItem("token"); const h = { "Content-Type": "application/json" }; if (t) h["Authorization"] = `Bearer ${t}`; return h; };
 
   const fetchData = async (d) => {
@@ -2295,7 +2301,8 @@ function SalesSummaryPopup({ onClose }) {
       const url = d ? `${AB}/api/reports/sales-summary?date=${d}` : `${AB}/api/reports/sales-summary`;
       const res = await fetch(url, { headers: hd() });
       const json = await res.json();
-      setData(Array.isArray(json) ? json : []);
+      const items = json?.data ?? json;
+      setData(Array.isArray(items) ? items : []);
     } catch {} finally { setLoading(false); }
   };
 
@@ -2353,7 +2360,7 @@ function DailyReportPopup({ onClose }) {
   const [expenses, setExpenses] = useState([]);
   const [payments, setPayments] = useState({});
   const [loading, setLoading] = useState(true);
-  const AB = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+  const AB = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
   const hd = () => { const t = localStorage.getItem("token"); const h = { "Content-Type": "application/json" }; if (t) h["Authorization"] = `Bearer ${t}`; return h; };
 
   useEffect(() => {
@@ -2363,10 +2370,13 @@ function DailyReportPopup({ onClose }) {
       fetch(`${AB}/api/reports/sales-summary?date=${date}`, { headers: hd() }).then((r) => r.json()),
       fetch(`${AB}/api/expenses?date=${date}`, { headers: hd() }).then((r) => r.json()),
       fetch(`${AB}/api/orders?status=completed&date=${date}&limit=500`, { headers: hd() }).then((r) => r.json()),
-    ]).then(([s, e, o]) => {
+    ]).then(([sRaw, eRaw, oRaw]) => {
+      const s = sRaw?.data ?? sRaw;
+      const e = eRaw?.data ?? eRaw;
+      const o = oRaw?.data ?? oRaw;
       setSales(Array.isArray(s) ? s : []);
       setExpenses(Array.isArray(e) ? e : []);
-      const orders = o.orders || o;
+      const orders = o?.orders || o;
       const pm = (Array.isArray(orders) ? orders : []).reduce((a, r) => { a[r.paymentMethod || "Other"] = (a[r.paymentMethod || "Other"] || 0) + (r.grandTotal || 0); return a; }, {});
       setPayments(pm);
     }).catch(() => {}).finally(() => setLoading(false));
@@ -2445,12 +2455,12 @@ function DailyExpensePopup({ onClose }) {
   const [form, setForm] = useState({ category: "", amount: "", notes: "", type: "out", method: "Cash" });
   const [editId, setEditId] = useState(null);
   const [msg, setMsg] = useState("");
-  const AB = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+  const AB = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
   const hd = () => { const t = localStorage.getItem("token"); const h = { "Content-Type": "application/json" }; if (t) h["Authorization"] = `Bearer ${t}`; return h; };
 
   const fetchExpenses = async () => {
     setLoading(true);
-    try { const res = await fetch(`${AB}/api/expenses?date=${date}`, { headers: hd() }); const d = await res.json(); setExpenses(Array.isArray(d) ? d.map((e) => ({ ...e, id: e._id || e.id })) : []); }
+    try { const res = await fetch(`${AB}/api/expenses?date=${date}`, { headers: hd() }); const raw = await res.json(); const d = raw?.data ?? raw; setExpenses(Array.isArray(d) ? d.map((e) => ({ ...e, id: e._id || e.id })) : []); }
     catch {} finally { setLoading(false); }
   };
 
@@ -2543,13 +2553,14 @@ function ProductsPopup({ onClose, onProductsChanged }) {
   const [filterCat, setFilterCat] = useState("");
 
   const cats = {1:"Tea",2:"Coffee",3:"Dairy Products",4:"Snacks",5:"Evening Special",6:"Fresh Juice",7:"Cool Drinks",8:"Ice Cream",9:"Karupatti Ice Cream",10:"Karupatti Snacks",11:"Other Snacks",12:"Biscuits & Cakes",13:"Parcel"};
-  const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+  const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
   const headers = () => { const t = localStorage.getItem("token"); const h = { "Content-Type": "application/json" }; if (t) h["Authorization"] = `Bearer ${t}`; return h; };
 
   const fetchItems = async () => {
     try {
       const res = await fetch(`${API}/api/products?available=true`, { headers: headers() });
-      const data = await res.json();
+      const raw = await res.json();
+      const data = raw?.data ?? raw;
       setItems(Array.isArray(data) ? data.map((i) => ({ ...i, id: i._id || i.id })) : []);
     } catch {} finally { setLoading(false); }
   };

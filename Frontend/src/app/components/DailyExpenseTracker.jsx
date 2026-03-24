@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { HiPencil, HiTrash } from "react-icons/hi";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
 
 function getAuthHeaders() {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -31,7 +31,8 @@ export default function DailyExpenseTracker({ selectedDate: initialDate }) {
     setLoading(true);
     fetch(`${API_BASE}/api/expenses?date=${selectedDate}`, { headers: getAuthHeaders() })
       .then((res) => res.json())
-      .then((data) => {
+      .then((raw) => {
+        const data = raw?.data ?? raw;
         const items = Array.isArray(data) ? data.map((e) => ({ id: e._id || e.id, ...e })) : [];
         setExpenses(items);
       })
@@ -47,7 +48,8 @@ export default function DailyExpenseTracker({ selectedDate: initialDate }) {
 
   const fetchAgain = async () => {
     const res = await fetch(`${API_BASE}/api/expenses?date=${selectedDate}`, { headers: getAuthHeaders() });
-    const data = await res.json();
+    const raw = await res.json();
+    const data = raw?.data ?? raw;
     setExpenses(Array.isArray(data) ? data.map((e) => ({ id: e._id || e.id, ...e })) : []);
   };
 

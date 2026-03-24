@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { HiShoppingCart, HiCurrencyRupee, HiTrendingUp, HiTrendingDown, HiReceiptRefund, HiDocumentReport, HiArrowLeft, HiRefresh } from "react-icons/hi";
 import { authAPI, reportsAPI, ordersAPI } from "@/app/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
 function hd() { const t = typeof window !== "undefined" ? localStorage.getItem("token") : null; const h = {}; if (t) h["Authorization"] = "Bearer " + t; return h; }
 
 export default function Dashboard() {
@@ -30,10 +30,13 @@ export default function Dashboard() {
       ordersAPI.getAll({ limit: 10 }).catch(() => ({ orders: [] })),
       fetch(API_BASE + "/api/expenses?date=" + today, { headers: hd() }).then(r => r.json()).catch(() => []),
       fetch(API_BASE + "/api/orders?status=completed&date=" + today + "&limit=500", { headers: hd() }).then(r => r.json()).catch(() => ({ orders: [] })),
-    ]).then(([sales, ordData, exps, todayOrd]) => {
+    ]).then(([salesRaw, ordData, expsRaw, todayOrdRaw]) => {
+      const sales = salesRaw?.data ?? salesRaw;
+      const exps = expsRaw?.data ?? expsRaw;
+      const todayOrd = todayOrdRaw?.data ?? todayOrdRaw;
       const s = Array.isArray(sales) ? sales : [];
       const e = Array.isArray(exps) ? exps : [];
-      const allOrd = todayOrd.orders || todayOrd;
+      const allOrd = todayOrd?.orders || todayOrd;
       const ol = Array.isArray(allOrd) ? allOrd : [];
       const ts = s.reduce((a, i) => a + (i.totalSales || 0), 0);
       const tc = s.reduce((a, i) => a + (i.totalCost || 0), 0);
