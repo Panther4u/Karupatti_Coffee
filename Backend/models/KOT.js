@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+require("./Counter"); // Ensure Counter model is registered for pre-save hook
 
 const kotItemSchema = new mongoose.Schema(
   {
