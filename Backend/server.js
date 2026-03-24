@@ -32,6 +32,7 @@ const stockRoutes = require("./routes/stock");
 const purchaseRoutes = require("./routes/purchases");
 
 const app = express();
+app.set("trust proxy", 1); // Trust first proxy (nginx)
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5001;
 
