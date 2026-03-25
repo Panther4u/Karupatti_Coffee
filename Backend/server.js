@@ -39,6 +39,7 @@ const PORT = process.env.PORT || 5001;
 // CORS — reject unauthorized origins
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  ...(process.env.EXTRA_ORIGINS ? process.env.EXTRA_ORIGINS.split(",") : []),
   "http://localhost:3000",
   "http://localhost:3001",
 ].filter(Boolean);
