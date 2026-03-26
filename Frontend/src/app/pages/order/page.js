@@ -1297,17 +1297,32 @@ function PaymentPopup({
   saving,
 }) {
   const cashInputRef = useRef(null);
+  const popupRef = useRef(null);
 
-  // Auto-fill cash received with grand total on popup open
+  // Auto-fill cash received on mount
   useEffect(() => {
     setCashReceived(String(Math.ceil(grandTotal)));
-  }, [grandTotal, setCashReceived]);
+    // Focus cash input after state update
+    const timer = setTimeout(() => {
+      if (cashInputRef.current) {
+        cashInputRef.current.focus();
+        cashInputRef.current.select();
+      }
+    }, 80);
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-focus cash input when cash selected
+  // Focus cash input when switching to cash, or popup div for UPI/Card keyboard shortcuts
   useEffect(() => {
-    if (radioChecked === "cash" && cashInputRef.current) {
-      setTimeout(() => cashInputRef.current?.select(), 100);
-    }
+    const timer = setTimeout(() => {
+      if (radioChecked === "cash" && cashInputRef.current) {
+        cashInputRef.current.focus();
+        cashInputRef.current.select();
+      } else if (popupRef.current) {
+        popupRef.current.focus();
+      }
+    }, 50);
+    return () => clearTimeout(timer);
   }, [radioChecked]);
 
   const received = parseFloat(cashReceived || 0);
@@ -1332,17 +1347,17 @@ function PaymentPopup({
 
   // Keyboard handler for entire popup
   const handlePopupKeyDown = (e) => {
-    // 1/2/3 → select payment method (only when not in input)
+    // 1/2/3 → select payment method (only when not typing in input)
     if (e.target.tagName !== "INPUT") {
       if (e.key === "1") { e.preventDefault(); setRadioChecked("cash"); return; }
       if (e.key === "2") { e.preventDefault(); setRadioChecked("upi"); return; }
       if (e.key === "3") { e.preventDefault(); setRadioChecked("card"); return; }
-    }
-    // Enter → complete payment
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (!saving && !(radioChecked === "cash" && isShort)) onPay();
-      return;
+      // Enter → complete payment (only from outside input — input has its own handler)
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (!saving && !(radioChecked === "cash" && isShort)) onPay();
+        return;
+      }
     }
     // Escape → close
     if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
@@ -1351,7 +1366,7 @@ function PaymentPopup({
   const changeBreakdown = getChangeBreakdown(change);
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-0 lg:p-4" onKeyDown={handlePopupKeyDown} data-popup="payment" tabIndex={-1} ref={(el) => el?.focus()}>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end lg:items-center justify-center p-0 lg:p-4" onKeyDown={handlePopupKeyDown} data-popup="payment" tabIndex={-1} ref={popupRef}>
       <div className="bg-white w-full lg:w-[480px] rounded-t-2xl lg:rounded-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -1400,9 +1415,8 @@ function PaymentPopup({
                 inputMode="decimal"
                 value={cashReceived}
                 onChange={(e) => setCashReceived(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (!isShort) onPay(); } }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); if (!isShort) onPay(); } }}
                 className="w-full p-3 border-2 border-gray-300 rounded-xl text-2xl font-bold text-center focus:ring-2 focus:ring-coffee focus:border-coffee outline-none"
-                autoFocus
               />
             </div>
 
