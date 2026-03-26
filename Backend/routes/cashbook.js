@@ -18,7 +18,7 @@ function getISTToday() {
 
 async function aggregateCashBook(dateStr) {
   // Cash sales
-  const cashOrders = await Order.find({ date: dateStr, paymentMethod: "Cash", status: "completed" });
+  const cashOrders = await Order.find({ date: dateStr, paymentMethod: { $regex: /^cash$/i }, status: "completed" });
   const cashSalesTotal = cashOrders.reduce((s, o) => s + o.grandTotal, 0);
 
   // All expenses for the day

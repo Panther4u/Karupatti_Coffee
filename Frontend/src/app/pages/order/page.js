@@ -645,7 +645,7 @@ export default function OrderPage() {
       total: subtotal,
       discount: discountAmount,
       grandTotal,
-      paymentMethod: radioChecked,
+      paymentMethod: radioChecked.charAt(0).toUpperCase() + radioChecked.slice(1),
       tableNo: tableNo || "01",
     };
 
