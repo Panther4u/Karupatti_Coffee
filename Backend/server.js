@@ -172,7 +172,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.json({ message: "Karupatti Coffee API is running" });
+  res.json({ message: "Karupatti Coffee API is running", developer: "EndlessScript", version: "1.0.0" });
 });
 
 // 404 Handler

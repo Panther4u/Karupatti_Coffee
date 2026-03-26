@@ -213,6 +213,7 @@ export default function Sidebar({ isOpen, onClose, currentPage, setCurrentPage, 
             <HiLogout className="w-[18px] h-[18px] flex-shrink-0" />
             <span>Logout</span>
           </button>
+          <p className="text-[10px] text-cream/30 text-center py-2">Developed by EndlessScript &copy; 2026</p>
         </div>
       </aside>
     </>

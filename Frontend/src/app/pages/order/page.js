@@ -323,6 +323,7 @@ export default function OrderPage() {
   <div class="center" style="margin-top:6px;">
     <div class="bold">Thank You! Visit Again ☕</div>
     <div class="small" style="margin-top:2px;">Karupatti Coffee POS</div>
+    <div class="small" style="margin-top:4px;color:#999;">Powered by EndlessScript</div>
   </div>
 </body></html>`;
 

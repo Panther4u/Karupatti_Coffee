@@ -238,6 +238,7 @@ export default function ReceiptPage() {
             <div className="r-sep border-t border-dashed border-coffee-light mx-3" />
             <div className="text-center py-2 text-[10px] text-coffee-light">
               <p className="font-semibold text-coffee">{receiptFooter}</p>
+              <p className="text-[9px] text-gray-400 mt-1">Powered by EndlessScript</p>
             </div>
           </div>
 
@@ -264,6 +265,7 @@ export default function ReceiptPage() {
               /receipt/{orderId}
             </span>
           </div>
+          <p className="no-print text-[10px] text-gray-400 text-center mt-6">&copy; 2026 EndlessScript. All rights reserved.</p>
         </div>
       </div>
     </>

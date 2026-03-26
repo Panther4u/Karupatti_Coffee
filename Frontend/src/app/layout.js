@@ -26,7 +26,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata = {
   title: "Karupatti Coffee POS",
   description:
-    "Say goodbye to waiting in line! Order your favorite coffee from the comfort of your seat and have it delivered directly to you.",
+    "Karupatti Coffee POS — Developed by EndlessScript. Order your favorite coffee from the comfort of your seat and have it delivered directly to you.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

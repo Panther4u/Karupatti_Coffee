@@ -2,6 +2,7 @@
   "name": "karupatti-coffee",
   "version": "0.1.0",
   "private": true,
+  "author": "EndlessScript",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

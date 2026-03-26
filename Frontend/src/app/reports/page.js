@@ -283,6 +283,7 @@ export default function ReportsPage() {
             <p className="text-sm">No data available for the selected period</p>
           </div>
         )}
+        <p className="text-[10px] text-gray-400 text-center py-4">&copy; 2026 EndlessScript. All rights reserved.</p>
       </main>
     </div>
   );

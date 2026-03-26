@@ -227,6 +227,7 @@ export default function ViewReceipts() {
         <div class="bold right" style="font-size:14px;">Total: Rs. ${receipt.grandTotal.toFixed(2)}</div>
         <div class="sep"></div>
         <div class="center bold">Thank You! Visit Again</div>
+        <div class="small" style="margin-top:4px;color:#999;text-align:center;">Powered by EndlessScript</div>
       </body></html>`);
     printable.document.close();
     printable.print();
@@ -459,6 +460,7 @@ export default function ViewReceipts() {
             </div>
           </m.div>
         ))}
+        <p className="text-[10px] text-gray-400 text-center py-4">&copy; 2026 EndlessScript. All rights reserved.</p>
       </div>
     </div>
   );

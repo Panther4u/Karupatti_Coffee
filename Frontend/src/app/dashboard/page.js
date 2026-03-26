@@ -101,6 +101,7 @@ export default function Dashboard() {
           <button onClick={() => router.push("/viewreceipts")} className="flex items-center gap-2 px-4 py-2.5 bg-accent text-coffee-dark rounded-xl font-semibold text-sm"><HiReceiptRefund className="w-4 h-4" />Receipts</button>
           <button onClick={() => router.push("/kitchen")} className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-xl font-semibold text-sm"><HiDocumentReport className="w-4 h-4" />Kitchen</button>
         </div>
+        <p className="text-[10px] text-gray-400 text-center pb-4">&copy; 2026 EndlessScript. All rights reserved.</p>
       </div>
     </div>
   );

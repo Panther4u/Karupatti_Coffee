@@ -9,9 +9,9 @@
     "seed": "node -r dotenv/config scripts/seed.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "EndlessScript",
   "license": "ISC",
-  "description": "",
+  "description": "Karupatti Coffee POS Backend — Developed by EndlessScript",
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",

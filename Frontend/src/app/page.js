@@ -224,6 +224,7 @@ export default function Home() {
             </div>
           </div>
         )}
+        <p className="text-xs text-gray-400 mt-4 text-center">&copy; 2026 EndlessScript. All rights reserved.</p>
       </div>
     </div>
   );
