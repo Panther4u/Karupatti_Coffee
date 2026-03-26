@@ -698,6 +698,7 @@ export default function OrderPage() {
       setOrderSaved(true);
       setActivePopup("complete");
       setSaving(false);
+      playBeep();
     } catch (err) {
       setOrderError(err.message || "Failed to save order");
       setSaving(false);
