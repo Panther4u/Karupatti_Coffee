@@ -435,7 +435,7 @@ export default function CashBookPage() {
               {/* Individual Pot Cards */}
               <div className="space-y-3">
                 {fundPots.length === 0 ? (
-                  <p className="text-center py-8 text-gray-400 text-sm">No fund pots configured. Go to Settings to add fixed daily expenses with "Fund" enabled.</p>
+                  <p className="text-center py-8 text-gray-400 text-sm">No fund pots configured. Go to Settings to add fixed daily expenses with &ldquo;Fund&rdquo; enabled.</p>
                 ) : fundPots.map((pot) => (
                   <div key={pot._id} className={`bg-white border-2 rounded-xl p-4 transition ${selectedPot === pot.category ? "border-purple-400 shadow-md" : "border-gray-200"}`}>
                     <div className="flex items-center justify-between mb-3">
