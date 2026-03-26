@@ -63,7 +63,7 @@ app.use(helmet());
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // Sanitize MongoDB queries — prevent NoSQL injection on body, params, and query
@@ -153,7 +153,12 @@ function getImageKit() {
 }
 
 app.get("/api/auth/imagekit", verifyToken, (req, res) => {
-  res.json(getImageKit().getAuthenticationParameters());
+  try {
+    res.json(getImageKit().getAuthenticationParameters());
+  } catch (err) {
+    console.error("ImageKit auth error:", err.message);
+    res.status(500).json({ success: false, error: "ImageKit authentication failed" });
+  }
 });
 
 // Health Check

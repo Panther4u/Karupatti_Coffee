@@ -13,16 +13,7 @@ import { ArrowLeftIcon } from "@heroicons/react/24/solid";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getSocket } from "@/app/lib/socket";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
-
-/** Helper to build auth headers with JWT token */
-function authHeaders() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  return headers;
-}
+import { authAPI, receiptsAPI, productsAPI } from "@/app/lib/api";
 
 /** Toast notification component */
 function Toast({ message, onClose }) {
@@ -54,6 +45,7 @@ export default function ViewReceipts() {
   const [editOrder, setEditOrder] = useState([]);
   const [menu, setMenu] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [menuSearchTerm, setMenuSearchTerm] = useState("");
   const [toast, setToast] = useState(null);
 
   const showToast = useCallback((message) => {
@@ -72,14 +64,7 @@ export default function ViewReceipts() {
     }
 
     // Verify token with backend
-    const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
-    fetch(`${API}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Unauthorized");
-        return res.json();
-      })
+    authAPI.me()
       .then(() => setAuthChecked(true))
       .catch(() => {
         localStorage.removeItem("token");
@@ -92,10 +77,8 @@ export default function ViewReceipts() {
   useEffect(() => {
     if (!authChecked) return;
 
-    fetch(`${API_BASE}/api/orders?status=completed&limit=500`, { headers: authHeaders() })
-      .then((res) => res.json())
-      .then((raw) => {
-        const data = raw?.data ?? raw;
+    receiptsAPI.getAll()
+      .then((data) => {
         const orders = data?.orders || data;
         const mapped = Array.isArray(orders) ? orders.map((o) => ({ id: o._id || o.id, ...o })) : [];
         setReceipts(mapped);
@@ -106,13 +89,12 @@ export default function ViewReceipts() {
         setLoading(false);
       });
 
-    fetch("/items.json")
-      .then((res) => res.json())
+    productsAPI.getAll()
       .then((data) => {
         const items = Array.isArray(data)
           ? data
           : typeof data === "object"
-          ? Object.values(data.data || data)
+          ? Object.values(data)
           : [];
         setMenu(items);
       })
@@ -172,19 +154,11 @@ export default function ViewReceipts() {
   const deleteReceipt = async (id, billNo) => {
     if (!confirm(`Delete receipt ${billNo}?`)) return;
     try {
-      const res = await fetch(`${API_BASE}/api/orders/${id}`, {
-        method: "DELETE",
-        headers: authHeaders(),
-      });
-      if (res.ok) {
-        setReceipts((prev) => prev.filter((r) => r.id !== id));
-        alert("Deleted successfully!");
-      } else {
-        const result = await res.json();
-        alert("Delete failed: " + result.error);
-      }
+      await receiptsAPI.delete(id);
+      setReceipts((prev) => prev.filter((r) => r.id !== id));
+      alert("Deleted successfully!");
     } catch (err) {
-      alert("Error deleting receipt.");
+      alert("Delete failed: " + (err.message || "Error deleting receipt."));
     }
   };
 
@@ -198,29 +172,29 @@ export default function ViewReceipts() {
 
   const saveEditedReceipt = async (receiptId) => {
     const updatedTotal = calculateTotal(editOrder);
+    const editReceipt = receipts.find((r) => r.id === receiptId);
+    const discount = editReceipt?.discount || 0;
+    const grandTotal = updatedTotal - discount;
     try {
-      const res = await fetch(`${API_BASE}/api/orders/${receiptId}`, {
-        method: "PUT",
-        headers: authHeaders(),
-        body: JSON.stringify({ order: editOrder, grandTotal: updatedTotal }),
-      });
-      if (!res.ok) throw new Error("Update failed");
+      await receiptsAPI.update(receiptId, { order: editOrder, total: updatedTotal, grandTotal });
       alert("Receipt updated!");
       setReceipts((prev) =>
         prev.map((r) =>
-          r.id === receiptId ? { ...r, order: editOrder, grandTotal: updatedTotal } : r
+          r.id === receiptId ? { ...r, order: editOrder, total: updatedTotal, grandTotal } : r
         )
       );
       setEditingId(null);
     } catch (err) {
-      alert("Failed to save changes.");
+      alert("Failed to save changes: " + (err.message || "Unknown error"));
     }
   };
+
+  const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 
   const printReceipt = (receipt) => {
     const printable = window.open("", "", "width=400,height=600");
     printable.document.write(`
-      <html><head><title>Receipt ${receipt.billNo}</title>
+      <html><head><title>Receipt ${esc(receipt.billNo)}</title>
       <style>
         body { font-family: 'Courier New', monospace; width: 72mm; margin: 0 auto; padding: 8px; font-size: 12px; }
         .center { text-align: center; }
@@ -235,9 +209,9 @@ export default function ViewReceipts() {
         <div class="center bold" style="font-size:14px;">KARUPATTI COFFEE</div>
         <div class="center" style="font-size:10px;">Natural Karupatti Coffee Shop</div>
         <div class="sep"></div>
-        <div>Order: ${receipt.billNo}</div>
+        <div>Order: ${esc(receipt.billNo)}</div>
         <div>Date: ${receipt.date} ${receipt.time || ""}</div>
-        <div>Payment: ${receipt.paymentMethod}</div>
+        <div>Payment: ${esc(receipt.paymentMethod)}</div>
         <div>Table: ${receipt.tableNo || "01"}</div>
         <div class="sep"></div>
         <table>
@@ -245,7 +219,7 @@ export default function ViewReceipts() {
           ${receipt.order
             .map(
               (item) =>
-                `<tr><td>${item.name}</td><td class="right">${item.amount}</td><td class="right">${(item.price * item.amount).toFixed(2)}</td></tr>`
+                `<tr><td>${esc(item.name)}</td><td class="right">${item.amount}</td><td class="right">${(item.price * item.amount).toFixed(2)}</td></tr>`
             )
             .join("")}
         </table>
@@ -274,7 +248,7 @@ export default function ViewReceipts() {
   const filteredMenu = menu.filter(
     (item) =>
       typeof item.name === "string" &&
-      item.name.toLowerCase().includes(searchTerm.toLowerCase())
+      item.name.toLowerCase().includes(menuSearchTerm.toLowerCase())
   );
 
   if (!authChecked) return <p className="p-4 text-center text-coffee-dark min-h-[100dvh] flex items-center justify-center">Checking access...</p>;
@@ -376,8 +350,8 @@ export default function ViewReceipts() {
               <h2 className="text-base sm:text-lg font-semibold mb-2 text-coffee-dark">Search Menu</h2>
               <input
                 type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={menuSearchTerm}
+                onChange={(e) => setMenuSearchTerm(e.target.value)}
                 placeholder="Search item by name..."
                 className="w-full p-3 h-12 border border-tan rounded-lg mb-2 text-coffee-dark bg-white focus:ring-2 focus:ring-accent"
               />
@@ -410,12 +384,20 @@ export default function ViewReceipts() {
           </div>
         )}
 
-        {receipts.map((receipt, idx) => (
+        {(searchTerm
+          ? receipts.filter(r =>
+              (r.billNo || r.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (r.paymentMethod || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+              r.order?.some(i => i.name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+              String(r.grandTotal).includes(searchTerm)
+            )
+          : receipts
+        ).map((receipt, idx) => (
           <m.div
             key={receipt.id || idx}
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: Math.min(idx * 0.05, 0.5) }}
+            transition={{ duration: 0.3, delay: idx < 20 ? idx * 0.05 : 0 }}
             className="bg-white p-3 sm:p-4 rounded-xl shadow-sm mb-3 border border-tan"
           >
             <div className="bg-coffee text-cream font-bold text-center rounded-lg px-2 py-2 mb-3 font-display">

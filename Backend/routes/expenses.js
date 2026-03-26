@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Expense = require("../models/Expense");
 const { verifyToken } = require("../middleware/auth");
+const roleCheck = require("../middleware/roleCheck");
 const asyncHandler = require("../middleware/asyncHandler");
 const { logAudit } = require("../config/audit");
 
@@ -32,7 +33,9 @@ router.get(
   "/today",
   verifyToken,
   asyncHandler(async (req, res) => {
-    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    const today = ist.toISOString().split("T")[0];
     const expenses = await Expense.find({ date: today });
 
     const totalIn = expenses
@@ -105,10 +108,11 @@ router.put(
   })
 );
 
-// DELETE /api/expenses/:id — delete expense (auth required)
+// DELETE /api/expenses/:id — delete expense (admin/manager only)
 router.delete(
   "/:id",
   verifyToken,
+  roleCheck("admin", "manager"),
   asyncHandler(async (req, res) => {
     const expense = await Expense.findByIdAndDelete(req.params.id);
     if (!expense) return res.status(404).json({ success: false, error: "Expense not found" });

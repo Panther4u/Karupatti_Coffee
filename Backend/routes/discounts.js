@@ -19,7 +19,17 @@ router.post(
     }
 
     const discount = new Discount({
-      ...req.body,
+      name, type, value,
+      applicableProducts: req.body.applicableProducts,
+      applicableCategories: req.body.applicableCategories,
+      minimumOrder: req.body.minimumOrder,
+      maximumDiscount: req.body.maximumDiscount,
+      schedule: req.body.schedule,
+      bogoConfig: req.body.bogoConfig,
+      comboConfig: req.body.comboConfig,
+      active: req.body.active,
+      validFrom: req.body.validFrom,
+      validTo: req.body.validTo,
       createdBy: req.user.id,
     });
 

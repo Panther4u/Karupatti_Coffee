@@ -2,10 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HiShoppingCart, HiCurrencyRupee, HiTrendingUp, HiTrendingDown, HiReceiptRefund, HiDocumentReport, HiArrowLeft, HiRefresh } from "react-icons/hi";
-import { authAPI, reportsAPI, ordersAPI } from "@/app/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
-function hd() { const t = typeof window !== "undefined" ? localStorage.getItem("token") : null; const h = {}; if (t) h["Authorization"] = "Bearer " + t; return h; }
+import { authAPI, reportsAPI, ordersAPI, expensesAPI } from "@/app/lib/api";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -24,25 +21,25 @@ export default function Dashboard() {
   const fetchAll = () => {
     if (!ok) return;
     setLoading(true);
-    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    const today = ist.toISOString().split("T")[0];
     Promise.all([
-      fetch(API_BASE + "/api/reports/sales-summary?date=" + today, { headers: hd() }).then(r => r.json()).catch(() => []),
+      reportsAPI.salesSummaryByDate(today).catch(() => []),
       ordersAPI.getAll({ limit: 10 }).catch(() => ({ orders: [] })),
-      fetch(API_BASE + "/api/expenses?date=" + today, { headers: hd() }).then(r => r.json()).catch(() => []),
-      fetch(API_BASE + "/api/orders?status=completed&date=" + today + "&limit=500", { headers: hd() }).then(r => r.json()).catch(() => ({ orders: [] })),
-    ]).then(([salesRaw, ordData, expsRaw, todayOrdRaw]) => {
-      const sales = salesRaw?.data ?? salesRaw;
-      const exps = expsRaw?.data ?? expsRaw;
-      const todayOrd = todayOrdRaw?.data ?? todayOrdRaw;
+      expensesAPI.getByDate(today).catch(() => []),
+      ordersAPI.getToday().catch(() => ({ totalOrders: 0, orders: [] })),
+    ]).then(([sales, ordData, exps, todaySummary]) => {
       const s = Array.isArray(sales) ? sales : [];
-      const e = Array.isArray(exps) ? exps : [];
-      const allOrd = todayOrd?.orders || todayOrd;
-      const ol = Array.isArray(allOrd) ? allOrd : [];
+      const expData = exps?.expenses || (Array.isArray(exps) ? exps : []);
       const ts = s.reduce((a, i) => a + (i.totalSales || 0), 0);
       const tc = s.reduce((a, i) => a + (i.totalCost || 0), 0);
-      const te = e.reduce((a, i) => a + Number(i.amount || 0), 0);
-      setStats({ orders: ol.length, revenue: ts, cost: tc, expenses: te, profit: ts - tc - te });
-      const pm = ol.reduce((a, o) => { a[o.paymentMethod || "Other"] = (a[o.paymentMethod || "Other"] || 0) + (o.grandTotal || 0); return a; }, {});
+      const te = expData.filter(x => x.type === "out").reduce((s, x) => s + Number(x.amount || 0), 0)
+               - expData.filter(x => x.type === "in").reduce((s, x) => s + Number(x.amount || 0), 0);
+      const todayOrders = todaySummary?.orders || [];
+      const orderCount = todaySummary?.totalOrders || (Array.isArray(todayOrders) ? todayOrders.length : 0);
+      setStats({ orders: orderCount, revenue: ts, cost: tc, expenses: te, profit: ts - tc - te });
+      const pm = (Array.isArray(todayOrders) ? todayOrders : []).reduce((a, o) => { a[o.paymentMethod || "Other"] = (a[o.paymentMethod || "Other"] || 0) + (o.grandTotal || 0); return a; }, {});
       setPayments(pm);
       const orders = ordData.orders || ordData;
       setRecent(Array.isArray(orders) ? orders.slice(0, 10) : []);

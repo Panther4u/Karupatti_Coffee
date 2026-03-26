@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const Order = require("../models/Order");
-const { verifyToken, optionalAuth } = require("../middleware/auth");
+const { verifyToken } = require("../middleware/auth");
+const roleCheck = require("../middleware/roleCheck");
 const asyncHandler = require("../middleware/asyncHandler");
 const { getIO } = require("../config/socket");
 const { logAudit } = require("../config/audit");
@@ -18,10 +19,10 @@ function emitEvent(event, data) {
   }
 }
 
-// POST /api/orders — create order (optionalAuth for POS)
+// POST /api/orders — create order (auth required)
 router.post(
   "/",
-  optionalAuth,
+  verifyToken,
   asyncHandler(async (req, res) => {
     const { order, total, discount, grandTotal, paymentMethod, tableNo } = req.body;
 
@@ -36,6 +37,7 @@ router.post(
     }
 
     const now = new Date();
+    const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
     const newOrder = await Order.create({
       order,
       total: total || grandTotal,
@@ -43,8 +45,8 @@ router.post(
       grandTotal,
       paymentMethod,
       tableNo: tableNo || "01",
-      date: now.toISOString().split("T")[0],
-      time: now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }),
+      date: ist.toISOString().split("T")[0],
+      time: ist.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }),
     });
 
     emitEvent("new-order", {
@@ -84,7 +86,7 @@ router.get(
     if (status) filter.status = String(status);
 
     const pageNum = Math.max(1, Number(page));
-    const limitNum = Math.min(Math.max(1, Number(limit)), 200);
+    const limitNum = Math.min(Math.max(1, Number(limit)), 500);
 
     const [orders, total] = await Promise.all([
       Order.find(filter).sort({ createdAt: -1 }).skip((pageNum - 1) * limitNum).limit(limitNum),
@@ -100,7 +102,9 @@ router.get(
   "/today",
   verifyToken,
   asyncHandler(async (req, res) => {
-    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    const today = ist.toISOString().split("T")[0];
     const orders = await Order.find({ date: today, status: "completed" });
 
     const totalRevenue = orders.reduce((sum, o) => sum + o.grandTotal, 0);
@@ -135,12 +139,13 @@ router.patch(
   "/:id/cancel",
   verifyToken,
   asyncHandler(async (req, res) => {
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { status: "cancelled" },
-      { new: true }
-    );
+    const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ success: false, error: "Order not found" });
+    if (order.status === "cancelled") {
+      return res.status(400).json({ success: false, error: "Order already cancelled" });
+    }
+    order.status = "cancelled";
+    await order.save();
 
     emitEvent("order-cancelled", {
       id: order._id,
@@ -170,10 +175,11 @@ router.patch(
   })
 );
 
-// PUT /api/orders/:id — update order (auth required, whitelist fields)
+// PUT /api/orders/:id — update order (admin/manager only, whitelist fields)
 router.put(
   "/:id",
   verifyToken,
+  roleCheck("admin", "manager"),
   asyncHandler(async (req, res) => {
     const { order: items, total, discount, grandTotal, paymentMethod, tableNo, status } = req.body;
     const update = {};
@@ -194,10 +200,11 @@ router.put(
   })
 );
 
-// DELETE /api/orders/:id — delete order (auth required)
+// DELETE /api/orders/:id — delete order (admin/manager only)
 router.delete(
   "/:id",
   verifyToken,
+  roleCheck("admin", "manager"),
   asyncHandler(async (req, res) => {
     const order = await Order.findByIdAndDelete(req.params.id);
     if (!order) return res.status(404).json({ success: false, error: "Order not found" });

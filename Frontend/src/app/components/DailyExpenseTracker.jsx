@@ -2,15 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { HiPencil, HiTrash } from "react-icons/hi";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
-
-function getAuthHeaders() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  return headers;
-}
+import { expensesAPI } from "@/app/lib/api";
 
 export default function DailyExpenseTracker({ selectedDate: initialDate }) {
   const [selectedDate, setSelectedDate] = useState(
@@ -29,12 +21,10 @@ export default function DailyExpenseTracker({ selectedDate: initialDate }) {
   useEffect(() => {
     if (!selectedDate) return;
     setLoading(true);
-    fetch(`${API_BASE}/api/expenses?date=${selectedDate}`, { headers: getAuthHeaders() })
-      .then((res) => res.json())
-      .then((raw) => {
-        const data = raw?.data ?? raw;
-        const items = Array.isArray(data) ? data.map((e) => ({ id: e._id || e.id, ...e })) : [];
-        setExpenses(items);
+    expensesAPI.getByDate(selectedDate)
+      .then((data) => {
+        const items = data?.expenses || (Array.isArray(data) ? data : []);
+        setExpenses(items.map((e) => ({ id: e._id || e.id, ...e })));
       })
       .catch((err) => console.error("Error:", err))
       .finally(() => setLoading(false));
@@ -47,10 +37,9 @@ export default function DailyExpenseTracker({ selectedDate: initialDate }) {
   const resetForm = () => { setCategory(""); setAmount(""); setNotes(""); setType("out"); setMethod("Cash"); setEditingId(null); };
 
   const fetchAgain = async () => {
-    const res = await fetch(`${API_BASE}/api/expenses?date=${selectedDate}`, { headers: getAuthHeaders() });
-    const raw = await res.json();
-    const data = raw?.data ?? raw;
-    setExpenses(Array.isArray(data) ? data.map((e) => ({ id: e._id || e.id, ...e })) : []);
+    const data = await expensesAPI.getByDate(selectedDate);
+    const items = data?.expenses || (Array.isArray(data) ? data : []);
+    setExpenses(items.map((e) => ({ id: e._id || e.id, ...e })));
   };
 
   const handleSubmit = async (e) => {
@@ -58,20 +47,19 @@ export default function DailyExpenseTracker({ selectedDate: initialDate }) {
     if (!category || !amount) return alert("Category and Amount required.");
     const payload = { category, amount: parseFloat(amount), notes, type: type.toLowerCase(), method, date: selectedDate, createdAt: new Date().toISOString() };
     try {
-      const res = isEditing
-        ? await fetch(`${API_BASE}/api/expenses/${editingId}`, { method: "PUT", headers: getAuthHeaders(), body: JSON.stringify(payload) })
-        : await fetch(`${API_BASE}/api/expenses`, { method: "POST", headers: getAuthHeaders(), body: JSON.stringify(payload) });
-      const result = await res.json();
-      if (result.success) { resetForm(); await fetchAgain(); }
+      const result = isEditing
+        ? await expensesAPI.update(editingId, payload)
+        : await expensesAPI.create(payload);
+      if (result.success !== false) { resetForm(); await fetchAgain(); }
       else alert(result.message || "Error saving.");
-    } catch { alert("Unexpected error."); }
+    } catch (err) { alert(err.message || "Unexpected error."); }
   };
 
   const handleEdit = (exp) => { setCategory(exp.category); setAmount(exp.amount); setNotes(exp.notes || ""); setType(exp.type || "out"); setMethod(exp.method || "Cash"); setEditingId(exp.id); };
 
   const handleDelete = async (id) => {
     if (!confirm("Delete this expense?")) return;
-    try { await fetch(`${API_BASE}/api/expenses/${id}`, { method: "DELETE", headers: getAuthHeaders() }); await fetchAgain(); }
+    try { await expensesAPI.delete(id); await fetchAgain(); }
     catch { alert("Delete failed."); }
   };
 

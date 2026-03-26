@@ -48,7 +48,6 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" href="/Logo.png" />
-        <link rel="manifest" href="/manifest.json" />
       </head>
       <body
         className={`${playfairDisplay.variable} ${dmSans.variable} ${jetbrainsMono.variable} font-body`}

@@ -1,13 +1,12 @@
 {
-  "name": "expense-tracker",
+  "name": "karupatti-coffee",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "serve": "json-server --watch db.json --port 4000"
+    "lint": "next lint"
   },
   "dependencies": {
     "@heroicons/react": "^2.1.5",

@@ -205,8 +205,18 @@ router.put(
     }
 
     if (username) user.username = username.toLowerCase().trim();
-    if (role) user.role = role;
-    if (password && password.length >= 6) user.passwordHash = password;
+    if (role) {
+      if (req.user.role !== "admin" && role === "admin") {
+        return res.status(403).json({ success: false, error: "Only admins can assign admin role" });
+      }
+      user.role = role;
+    }
+    if (password) {
+      if (password.length < 6) {
+        return res.status(400).json({ success: false, error: "Password must be at least 6 characters" });
+      }
+      user.passwordHash = password;
+    }
     await user.save();
 
     await logAudit({ action: "update-user", entity: "Admin", entityId: user._id, user: req.user });

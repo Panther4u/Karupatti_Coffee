@@ -1,15 +1,17 @@
 const express = require("express");
 const router = express.Router();
 const { verifyToken } = require("../middleware/auth");
+const roleCheck = require("../middleware/roleCheck");
 const Product = require("../models/Product");
 const StockLog = require("../models/StockLog");
 const asyncHandler = require("../middleware/asyncHandler");
 const { logAudit } = require("../config/audit");
 
-// POST /adjust - Adjust product stock
+// POST /adjust - Adjust product stock (admin/manager only)
 router.post(
   "/adjust",
   verifyToken,
+  roleCheck("admin", "manager"),
   asyncHandler(async (req, res) => {
     const { productId, quantity, type, reason } = req.body;
 

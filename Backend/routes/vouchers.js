@@ -5,9 +5,10 @@ const { verifyToken } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 const { logAudit } = require("../config/audit");
 
-// POST /api/vouchers/validate — validate a voucher code (no auth, does NOT consume usage)
+// POST /api/vouchers/validate — validate a voucher code (auth required, does NOT consume usage)
 router.post(
   "/validate",
+  verifyToken,
   asyncHandler(async (req, res) => {
     const { code, orderAmount } = req.body;
     if (!code) return res.status(400).json({ success: false, error: "Voucher code required" });
@@ -58,6 +59,7 @@ router.post(
 // POST /api/vouchers/redeem — atomically redeem voucher (called when order is placed)
 router.post(
   "/redeem",
+  verifyToken,
   asyncHandler(async (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ success: false, error: "Voucher code required" });

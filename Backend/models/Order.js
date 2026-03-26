@@ -35,9 +35,9 @@ orderSchema.pre("save", async function () {
   if (!this.orderNumber) {
     const Counter = mongoose.model("Counter");
     const num = await Counter.getNextNumber("order", "ORD");
-    // Extract just the number portion for display
-    this.orderNumber = `#${num.split("/").pop()}`;
-    this.billNo = this.orderNumber;
+    // Extract just the number portion for display, keep full format for billNo
+    this.orderNumber = '#' + num.split("/").pop();
+    this.billNo = num; // Keep full format like "ORD-2025-26/000001"
   }
 });
 

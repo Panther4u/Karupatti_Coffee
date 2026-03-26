@@ -18,26 +18,41 @@ router.post(
         .json({ success: false, error: "Valid opening cash required" });
     }
 
-    const activeShift = await Shift.findOne({ status: "active" });
-    if (activeShift) {
-      return res.status(409).json({
-        success: false,
-        error: "An active shift already exists",
-      });
+    try {
+      const result = await Shift.findOneAndUpdate(
+        { status: "active" },
+        {
+          $setOnInsert: {
+            userId: req.user.id,
+            userName: req.user.username || req.user.email,
+            openingCash,
+            status: "active",
+          },
+        },
+        { upsert: true, new: true, rawResult: true }
+      );
+
+      if (!result.lastErrorObject.upserted) {
+        return res.status(409).json({
+          success: false,
+          error: "An active shift already exists",
+        });
+      }
+
+      const shift = result.value;
+
+      await logAudit({ action: "open-shift", entity: "Shift", entityId: shift._id, user: req.user });
+
+      res.json({ success: true, data: shift });
+    } catch (err) {
+      if (err.code === 11000) {
+        return res.status(409).json({
+          success: false,
+          error: "An active shift already exists",
+        });
+      }
+      throw err;
     }
-
-    const shift = new Shift({
-      userId: req.user.id,
-      userName: req.user.username || req.user.email,
-      openingCash,
-      status: "active",
-    });
-
-    await shift.save();
-
-    await logAudit({ action: "open-shift", entity: "Shift", entityId: shift._id, user: req.user });
-
-    res.json({ success: true, data: shift });
   })
 );
 

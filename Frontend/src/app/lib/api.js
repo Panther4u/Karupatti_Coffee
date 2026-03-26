@@ -11,26 +11,25 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
  * and handles 401 responses by clearing auth and redirecting.
  */
 async function apiFetch(endpoint, options = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
+  const headers = { ...(options.headers || {}) };
 
-  // Attach JWT token if available
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("token");
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+  // Only set Content-Type for JSON bodies (not FormData)
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = headers["Content-Type"] || "application/json";
   }
 
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("token");
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
 
-  // Handle 401 Unauthorized — clear auth state and redirect to login
-  // Skip redirect for /api/auth/me (used to check if logged in)
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
+  } catch (err) {
+    throw new Error("Network error — check your connection");
+  }
+
   if (res.status === 401) {
     if (typeof window !== "undefined" && !endpoint.includes("/api/auth/me")) {
       localStorage.removeItem("token");
@@ -41,17 +40,20 @@ async function apiFetch(endpoint, options = {}) {
     throw new Error("Unauthorized — session expired");
   }
 
-  const json = await res.json();
+  let json;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error(`Server error ${res.status} — invalid response`);
+  }
 
   if (!res.ok) {
     throw new Error(json.error || json.message || `API error ${res.status}`);
   }
 
-  // Unwrap { success, data } envelope — return data array/object directly
   if (json && json.success && json.data !== undefined) {
     return json.data;
   }
-
   return json;
 }
 
@@ -205,13 +207,26 @@ export const auditAPI = {
 
 // Receipts (public)
 export const digitalReceiptAPI = {
-  getPublic: (orderId) =>
-    fetch(`${BASE_URL}/api/receipts/${orderId}/public`).then((r) => r.json()),
+  getPublic: async (orderId) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/receipts/${orderId}/public`);
+      const json = await res.json();
+      return json?.data ?? json;
+    } catch {
+      throw new Error("Failed to load receipt");
+    }
+  },
 };
 
 // Health
-export const healthCheck = () =>
-  fetch(`${BASE_URL}/api/health`).then((r) => r.json());
+export const healthCheck = async () => {
+  try {
+    const res = await fetch(`${BASE_URL}/api/health`);
+    return await res.json();
+  } catch {
+    return { status: "unreachable" };
+  }
+};
 
 // Discounts
 export const discountsAPI = {

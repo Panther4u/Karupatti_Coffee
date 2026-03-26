@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { verifyToken } = require("../middleware/auth");
+const roleCheck = require("../middleware/roleCheck");
 const Purchase = require("../models/Purchase");
 const Product = require("../models/Product");
 const StockLog = require("../models/StockLog");
@@ -140,10 +141,11 @@ router.put(
   })
 );
 
-// DELETE /:id - Delete purchase (reverse stock adjustment)
+// DELETE /:id - Delete purchase (admin/manager only, reverse stock adjustment)
 router.delete(
   "/:id",
   verifyToken,
+  roleCheck("admin", "manager"),
   asyncHandler(async (req, res) => {
     const purchase = await Purchase.findByIdAndDelete(req.params.id);
 

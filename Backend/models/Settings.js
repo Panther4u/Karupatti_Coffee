@@ -2,11 +2,11 @@ const mongoose = require("mongoose");
 
 const settingsSchema = new mongoose.Schema(
   {
-    shopName: { type: String, default: "Karupatti Coffee" },
-    shopAddress: { type: String, default: "North Pradakshanam Road, Karur" },
-    shopPhone: { type: String, default: "7010452495" },
+    shopName: { type: String, default: "" },
+    shopAddress: { type: String, default: "" },
+    shopPhone: { type: String, default: "" },
     shopEmail: { type: String, default: "" },
-    gstNumber: { type: String, default: "33GGTPS6619J1ZJ" },
+    gstNumber: { type: String, default: "" },
     fssaiNumber: { type: String, default: "" },
     logoUrl: { type: String, default: "" },
     taxEnabled: { type: Boolean, default: false },

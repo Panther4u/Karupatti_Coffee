@@ -72,7 +72,8 @@ export default function Home() {
 
       // Store JWT token
       localStorage.setItem("token", data.token);
-      localStorage.setItem("isAdmin", "true");
+      localStorage.setItem("isAdmin", data.user?.role === "admin" ? "true" : "false");
+      localStorage.setItem("userRole", data.user?.role || "cashier");
 
       setShowLoginModal(false);
       setPassword("");

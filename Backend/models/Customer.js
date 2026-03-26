@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const customerSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    phone: { type: String, sparse: true },
+    phone: { type: String },
     totalOrders: { type: Number, default: 0 },
     totalSpent: { type: Number, default: 0 },
     lastVisit: { type: Date },
@@ -11,5 +11,8 @@ const customerSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+customerSchema.index({ phone: 1 }, { sparse: true });
+customerSchema.index({ name: 1 });
 
 module.exports = mongoose.model("Customer", customerSchema);

@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { HiChevronLeft, HiDownload, HiPrinter } from "react-icons/hi";
 import { reportsExtAPI } from "@/app/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
-
 export default function ReportsPage() {
   const router = useRouter();
   const [isVerified, setIsVerified] = useState(false);
@@ -129,7 +127,10 @@ export default function ReportsPage() {
       obj.forEach((row) => {
         csv += headers.map((h) => {
           const val = row[h];
-          return typeof val === "string" && val.includes(",") ? `"${val}"` : val;
+          if (typeof val === "string") {
+            return `"${val.replace(/"/g, '""')}"`;
+          }
+          return val;
         }).join(",") + "\n";
       });
     } else {

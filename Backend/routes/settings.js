@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { verifyToken } = require("../middleware/auth");
+const roleCheck = require("../middleware/roleCheck");
 const Settings = require("../models/Settings");
 const asyncHandler = require("../middleware/asyncHandler");
 
@@ -18,6 +19,7 @@ router.get(
 router.put(
   "/",
   verifyToken,
+  roleCheck("admin", "manager"),
   asyncHandler(async (req, res) => {
     const {
       shopName,

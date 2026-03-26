@@ -35,8 +35,10 @@ import {
   shiftsAPI,
   customersAPI,
   settingsAPI,
+  expensesAPI,
+  reportsAPI,
 } from "@/app/lib/api";
-import { queueOrder, getPendingCount, syncOrders } from "@/app/lib/offlineQueue";
+import { queueOrder, getPendingCount, syncOrders, cacheData, getCachedData } from "@/app/lib/offlineQueue";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
 const cleanUrl = (u) => (u ? u.replace(/[\r\n]+/g, "").trim().replace(/%20/g, " ") : "");
@@ -146,70 +148,87 @@ export default function OrderPage() {
     checkAuth();
   }, [router]);
 
-  // Load products
+  // Load products (online → fetch + cache, offline → use cached data)
   useEffect(() => {
     if (!isAuthenticated) return;
     const loadData = async () => {
       try {
         const prods = await productsAPI.getAll({ available: true });
-        setProducts(
-          prods.map((p) => ({
-            ...p,
-            imageUrl: cleanUrl(p.imageUrl),
-          }))
-        );
+        const mapped = prods.map((p) => ({ ...p, imageUrl: cleanUrl(p.imageUrl) }));
+        setProducts(mapped);
+        // Cache for offline use
+        cacheData("products", mapped);
+
         const tbls = await tablesAPI.getAll();
         setTables(tbls || []);
+        cacheData("tables", tbls || []);
+
         const sh = await shiftsAPI.current();
         setShift(sh);
-        try { const s = await settingsAPI.get(); if (s) setShopSettings(s); } catch {}
+
+        try {
+          const s = await settingsAPI.get();
+          if (s) { setShopSettings(s); cacheData("settings", s); }
+        } catch {}
       } catch (err) {
-        console.error(err);
+        console.error("Online load failed, trying offline cache:", err.message);
+        // Fallback to cached data when offline
+        const cachedProds = await getCachedData("products");
+        if (cachedProds) setProducts(cachedProds);
+        const cachedTables = await getCachedData("tables");
+        if (cachedTables) setTables(cachedTables);
+        const cachedSettings = await getCachedData("settings");
+        if (cachedSettings) setShopSettings(cachedSettings);
       }
     };
     loadData();
   }, [isAuthenticated]);
 
-  // Online/Offline detection + auto-sync
+  // Auto-sync helper — uses ordersAPI.create()
+  const doSync = useCallback(async () => {
+    const count = await getPendingCount();
+    if (count === 0) return;
+    setSyncing(true);
+    try {
+      const results = await syncOrders((orderData) => ordersAPI.create(orderData));
+      const synced = results.filter((r) => r.success).length;
+      const remaining = await getPendingCount();
+      setOfflineCount(remaining);
+      if (synced > 0) playBeep();
+    } catch (err) {
+      console.error("Sync failed:", err);
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
+  // Online/Offline detection + auto-sync + periodic retry
   useEffect(() => {
     setIsOnline(navigator.onLine);
     getPendingCount().then(setOfflineCount).catch(() => {});
 
-    const goOnline = async () => {
-      setIsOnline(true);
-      // Auto-sync queued offline orders
-      const count = await getPendingCount();
-      if (count > 0) {
-        setSyncing(true);
-        try {
-          const results = await syncOrders(async (orderData) => {
-            const tk = localStorage.getItem("token");
-            const syncHdrs = { "Content-Type": "application/json" };
-            if (tk) syncHdrs["Authorization"] = `Bearer ${tk}`;
-            const res = await fetch(`${API_BASE}/api/orders`, {
-              method: "POST", headers: syncHdrs,
-              body: JSON.stringify(orderData),
-            });
-            const json = await res.json();
-            if (json.error) throw new Error(json.error);
-            return json?.data ?? json;
-          });
-          const synced = results.filter((r) => r.success).length;
-          setOfflineCount(0);
-          if (synced > 0) playBeep();
-        } catch (err) {
-          console.error("Sync failed:", err);
-        } finally {
-          setSyncing(false);
-        }
-      }
-    };
+    const goOnline = () => { setIsOnline(true); doSync(); };
     const goOffline = () => { setIsOnline(false); };
 
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
-    return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
-  }, []);
+
+    // Periodic retry every 30s when online with pending orders
+    const retryInterval = setInterval(() => {
+      if (navigator.onLine) {
+        getPendingCount().then((c) => { if (c > 0) doSync(); });
+      }
+    }, 30000);
+
+    // Sync on mount if online
+    if (navigator.onLine) doSync();
+
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+      clearInterval(retryInterval);
+    };
+  }, [doSync]);
 
   // Filter products on search
   useEffect(() => {
@@ -235,12 +254,14 @@ export default function OrderPage() {
 
   // Compute bill totals
   const subtotal = billItems.reduce((sum, item) => sum + item.itemTotal, 0);
-  const taxableAmount = subtotal - discountAmount;
+  const taxableAmount = Math.max(0, subtotal - discountAmount);
   const taxOn = shopSettings.taxEnabled && !shopSettings.inclusiveTax;
   const cgst = taxOn ? Math.round(taxableAmount * (shopSettings.cgstRate || 0) / 100 * 100) / 100 : 0;
   const sgst = taxOn ? Math.round(taxableAmount * (shopSettings.sgstRate || 0) / 100 * 100) / 100 : 0;
   const grandTotalRaw = subtotal - discountAmount + cgst + sgst;
   const grandTotal = shopSettings.roundOff ? Math.round(grandTotalRaw) : grandTotalRaw;
+
+  const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 
   // Print thermal receipt in hidden iframe
   const printReceipt = (data) => {
@@ -249,7 +270,7 @@ export default function OrderPage() {
     const itemRows = items.map((item) => {
       const qty = item.amount || item.qty || 1;
       const amt = (item.price * qty).toFixed(2);
-      const name = item.name.length > 22 ? item.name.slice(0, 22) : item.name;
+      const name = esc(item.name.length > 22 ? item.name.slice(0, 22) : item.name);
       return `<tr><td style="text-align:left">${name}</td><td style="text-align:center">${qty}</td><td style="text-align:right">${item.price}</td><td style="text-align:right">${amt}</td></tr>`;
     }).join("");
 
@@ -279,9 +300,9 @@ export default function OrderPage() {
   <div class="center bold">TAX INVOICE</div>
   <div class="sep"></div>
   <table>
-    <tr><td>Bill: ${data.billNo || "—"}</td><td class="right">${data.date || ""}</td></tr>
-    <tr><td>Invoice: ${data.invoiceNumber || "—"}</td><td class="right">${data.time || ""}</td></tr>
-    <tr><td>Payment: ${(data.payment || "").toUpperCase()}</td><td class="right">Table: ${tableNo || "01"}</td></tr>
+    <tr><td>Bill: ${esc(data.billNo || "—")}</td><td class="right">${data.date || ""}</td></tr>
+    <tr><td>Invoice: ${esc(data.invoiceNumber || "—")}</td><td class="right">${data.time || ""}</td></tr>
+    <tr><td>Payment: ${esc((data.payment || "").toUpperCase())}</td><td class="right">Table: ${tableNo || "01"}</td></tr>
   </table>
   <div class="sep"></div>
   <table>
@@ -517,7 +538,7 @@ export default function OrderPage() {
           if (e.key === "w" || e.key === "W") {
             e.preventDefault();
             if (receiptData) {
-              const msg = `Receipt from Karupatti Coffee%0ABill: ${receiptData.billNo}%0ATotal: ₹${receiptData.grandTotal?.toFixed(0)}%0AView: ${window.location.origin}/receipt/${receiptData.id}`;
+              const msg = encodeURIComponent(`Receipt from Karupatti Coffee\nBill: ${receiptData.billNo}\nTotal: ₹${receiptData.grandTotal?.toFixed(0)}\nView: ${window.location.origin}/receipt/${receiptData.id}`);
               window.open(`https://wa.me/?text=${msg}`, "_blank");
             }
             return;
@@ -577,7 +598,7 @@ export default function OrderPage() {
           e.preventDefault();
           removeBillItem(selectedBillIndex);
           setSelectedBillIndex((p) => Math.max(0, p - 1));
-          if (billItems.length <= 1) { setBillFocused(false); refocusSearch(); }
+          if (billItems.length - 1 <= 0) { setBillFocused(false); refocusSearch(); }
           return;
         }
         // Escape → back to search
@@ -601,7 +622,7 @@ export default function OrderPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [activePopup, billItems, billFocused, selectedBillIndex, refocusSearch]); // eslint-disable-line
+  }, [activePopup, billItems, billFocused, selectedBillIndex, refocusSearch, receiptData, printReceipt, clearBill, updateBillItem, removeBillItem, radioChecked, cashReceived, grandTotal, discountAmount, subtotal, tableNo, cgst, sgst]);
 
   // Place order (online → API, offline → queue in IndexedDB)
   const placeOrder = async () => {
@@ -658,17 +679,7 @@ export default function OrderPage() {
 
     // === ONLINE MODE: send to API ===
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      const hdrs = { "Content-Type": "application/json" };
-      if (token) hdrs["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/api/orders`, {
-        method: "POST",
-        headers: hdrs,
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (json.error) { setOrderError(json.error); setSaving(false); return; }
-      const data = json?.data ?? json;
+      const data = await ordersAPI.create(payload);
 
       setLastOrderId(data.id);
       setReceiptData({
@@ -1478,7 +1489,7 @@ function OrderCompletePopup({ receiptData, onNewOrder, onPrint }) {
     if (e.key === "p" || e.key === "P") { e.preventDefault(); onPrint(); return; }
     if (e.key === "w" || e.key === "W") {
       e.preventDefault();
-      const msg = `Receipt from Karupatti Coffee%0ABill: ${receiptData?.billNo}%0ATotal: ₹${receiptData?.grandTotal?.toFixed(0)}%0AView: ${window.location.origin}/receipt/${receiptData?.id}`;
+      const msg = encodeURIComponent(`Receipt from Karupatti Coffee\nBill: ${receiptData?.billNo}\nTotal: ₹${receiptData?.grandTotal?.toFixed(0)}\nView: ${window.location.origin}/receipt/${receiptData?.id}`);
       window.open(`https://wa.me/?text=${msg}`, "_blank");
       return;
     }
@@ -1544,7 +1555,7 @@ function OrderCompletePopup({ receiptData, onNewOrder, onPrint }) {
             <HiPrinter className="w-4 h-4" /> [P] Print
           </button>
           <button onClick={() => {
-            const msg = `Receipt from Karupatti Coffee%0ABill: ${receiptData?.billNo}%0ATotal: ₹${receiptData?.grandTotal?.toFixed(0)}%0AView: ${window.location.origin}/receipt/${receiptData?.id}`;
+            const msg = encodeURIComponent(`Receipt from Karupatti Coffee\nBill: ${receiptData?.billNo}\nTotal: ₹${receiptData?.grandTotal?.toFixed(0)}\nView: ${window.location.origin}/receipt/${receiptData?.id}`);
             window.open(`https://wa.me/?text=${msg}`, "_blank");
           }}
             className="flex-1 py-2.5 border-2 border-green-500 text-green-600 font-bold rounded-xl hover:bg-green-50 transition flex items-center justify-center gap-1.5 text-sm">
@@ -1907,11 +1918,11 @@ function MobileBillPopup({
             </div>
           )}
           <div className="flex justify-between text-xs text-gray-600">
-            <span>CGST (9%):</span>
+            <span>CGST ({shopSettings.cgstRate || 0}%):</span>
             <span>₹{cgst.toFixed(0)}</span>
           </div>
           <div className="flex justify-between text-xs text-gray-600">
-            <span>SGST (9%):</span>
+            <span>SGST ({shopSettings.sgstRate || 0}%):</span>
             <span>₹{sgst.toFixed(0)}</span>
           </div>
           <div className="flex justify-between text-base font-bold border-t border-gray-300 pt-2">
@@ -2292,16 +2303,12 @@ function SalesSummaryPopup({ onClose }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState("");
-  const AB = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
-  const hd = () => { const t = localStorage.getItem("token"); const h = { "Content-Type": "application/json" }; if (t) h["Authorization"] = `Bearer ${t}`; return h; };
 
   const fetchData = async (d) => {
     setLoading(true);
     try {
-      const url = d ? `${AB}/api/reports/sales-summary?date=${d}` : `${AB}/api/reports/sales-summary`;
-      const res = await fetch(url, { headers: hd() });
-      const json = await res.json();
-      const items = json?.data ?? json;
+      const raw = d ? await reportsAPI.salesSummaryByDate(d) : await reportsAPI.salesSummary();
+      const items = raw?.data ?? raw;
       setData(Array.isArray(items) ? items : []);
     } catch {} finally { setLoading(false); }
   };
@@ -2360,22 +2367,20 @@ function DailyReportPopup({ onClose }) {
   const [expenses, setExpenses] = useState([]);
   const [payments, setPayments] = useState({});
   const [loading, setLoading] = useState(true);
-  const AB = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
-  const hd = () => { const t = localStorage.getItem("token"); const h = { "Content-Type": "application/json" }; if (t) h["Authorization"] = `Bearer ${t}`; return h; };
 
   useEffect(() => {
     if (!date) return;
     setLoading(true);
     Promise.all([
-      fetch(`${AB}/api/reports/sales-summary?date=${date}`, { headers: hd() }).then((r) => r.json()),
-      fetch(`${AB}/api/expenses?date=${date}`, { headers: hd() }).then((r) => r.json()),
-      fetch(`${AB}/api/orders?status=completed&date=${date}&limit=500`, { headers: hd() }).then((r) => r.json()),
+      reportsAPI.salesSummaryByDate(date).catch(() => []),
+      expensesAPI.getByDate(date).catch(() => []),
+      ordersAPI.getAll({ status: "completed", date, limit: 500 }).catch(() => ({ orders: [] })),
     ]).then(([sRaw, eRaw, oRaw]) => {
       const s = sRaw?.data ?? sRaw;
-      const e = eRaw?.data ?? eRaw;
-      const o = oRaw?.data ?? oRaw;
       setSales(Array.isArray(s) ? s : []);
-      setExpenses(Array.isArray(e) ? e : []);
+      const expData = eRaw?.expenses || (Array.isArray(eRaw) ? eRaw : []);
+      setExpenses(expData);
+      const o = oRaw?.data ?? oRaw;
       const orders = o?.orders || o;
       const pm = (Array.isArray(orders) ? orders : []).reduce((a, r) => { a[r.paymentMethod || "Other"] = (a[r.paymentMethod || "Other"] || 0) + (r.grandTotal || 0); return a; }, {});
       setPayments(pm);
@@ -2385,7 +2390,8 @@ function DailyReportPopup({ onClose }) {
   const totalSales = sales.reduce((s, i) => s + (i.totalSales || 0), 0);
   const totalCost = sales.reduce((s, i) => s + (i.totalCost || 0), 0);
   const grossProfit = totalSales - totalCost;
-  const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const totalExpenses = expenses.filter(x => x.type === "out").reduce((s, e) => s + Number(e.amount || 0), 0)
+                      - expenses.filter(x => x.type === "in").reduce((s, e) => s + Number(e.amount || 0), 0);
   const netProfit = grossProfit - totalExpenses;
 
   return (
@@ -2455,13 +2461,14 @@ function DailyExpensePopup({ onClose }) {
   const [form, setForm] = useState({ category: "", amount: "", notes: "", type: "out", method: "Cash" });
   const [editId, setEditId] = useState(null);
   const [msg, setMsg] = useState("");
-  const AB = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
-  const hd = () => { const t = localStorage.getItem("token"); const h = { "Content-Type": "application/json" }; if (t) h["Authorization"] = `Bearer ${t}`; return h; };
 
   const fetchExpenses = async () => {
     setLoading(true);
-    try { const res = await fetch(`${AB}/api/expenses?date=${date}`, { headers: hd() }); const raw = await res.json(); const d = raw?.data ?? raw; setExpenses(Array.isArray(d) ? d.map((e) => ({ ...e, id: e._id || e.id })) : []); }
-    catch {} finally { setLoading(false); }
+    try {
+      const data = await expensesAPI.getByDate(date);
+      const items = data?.expenses || (Array.isArray(data) ? data : []);
+      setExpenses(items.map((e) => ({ ...e, id: e._id || e.id })));
+    } catch {} finally { setLoading(false); }
   };
 
   useEffect(() => { fetchExpenses(); }, [date]);
@@ -2474,17 +2481,17 @@ function DailyExpensePopup({ onClose }) {
     setMsg("");
     const payload = { ...form, amount: Number(form.amount), date, createdAt: new Date().toISOString() };
     try {
-      const url = editId ? `${AB}/api/expenses/${editId}` : `${AB}/api/expenses`;
-      const res = await fetch(url, { method: editId ? "PUT" : "POST", headers: hd(), body: JSON.stringify(payload) });
-      const data = await res.json();
-      if (data.success) { setForm({ category: "", amount: "", notes: "", type: "out", method: "Cash" }); setEditId(null); fetchExpenses(); setMsg(editId ? "Updated!" : "Added!"); setTimeout(() => setMsg(""), 2000); }
-      else setMsg(data.error || "Failed");
-    } catch { setMsg("Error"); }
+      const result = editId
+        ? await expensesAPI.update(editId, payload)
+        : await expensesAPI.create(payload);
+      if (result.success !== false) { setForm({ category: "", amount: "", notes: "", type: "out", method: "Cash" }); setEditId(null); fetchExpenses(); setMsg(editId ? "Updated!" : "Added!"); setTimeout(() => setMsg(""), 2000); }
+      else setMsg(result.error || "Failed");
+    } catch (err) { setMsg(err.message || "Error"); }
   };
 
   const handleDelete = async (id) => {
     if (!confirm("Delete?")) return;
-    try { await fetch(`${AB}/api/expenses/${id}`, { method: "DELETE", headers: hd() }); fetchExpenses(); } catch {}
+    try { await expensesAPI.delete(id); fetchExpenses(); } catch {}
   };
 
   const ic = "w-full border border-gray-200 px-3 py-2 h-9 rounded-lg text-sm focus:ring-2 focus:ring-coffee outline-none";

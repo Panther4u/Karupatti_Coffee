@@ -2,26 +2,30 @@
 
 import { io } from "socket.io-client";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
 
-/**
- * Singleton Socket.io client.
- * Auto-reconnects on disconnect.
- * Only initializes in the browser.
- */
 let socket = null;
 
 export function getSocket() {
   if (typeof window === "undefined") return null;
 
-  if (!socket) {
-    socket = io(API_BASE, {
+  if (!socket || !socket.connected) {
+    // Disconnect old socket if it exists (handles hot reload)
+    if (socket) {
+      socket.disconnect();
+      socket = null;
+    }
+
+    const token = localStorage.getItem("token");
+
+    socket = io(SOCKET_URL, {
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       autoConnect: true,
+      auth: token ? { token } : {},
     });
 
     socket.on("connect", () => {
@@ -30,7 +34,6 @@ export function getSocket() {
 
     socket.on("disconnect", (reason) => {
       console.log("Socket disconnected:", reason);
-      // Auto-reconnect unless the server explicitly disconnected us
       if (reason === "io server disconnect") {
         socket.connect();
       }
