@@ -753,6 +753,7 @@ export default function OrderPage() {
           if (page === "kitchen") { router.push("/kitchen"); return; }
           if (page === "reports") { router.push("/reports"); return; }
           if (page === "inventory") { router.push("/inventory"); return; }
+          if (page === "cashbook") { router.push("/cashbook"); return; }
           // Old pages that were inline — redirect to dedicated pages if they exist
           if (page === 3) { setActivePopup("products"); return; }
           if (page === 4) { setActivePopup("salesSummary"); return; }
@@ -2114,6 +2115,39 @@ function SettingsPopup({ onClose, onSave }) {
                 <label className="flex items-center gap-2"><input type="checkbox" checked={settings.roundOff || false} onChange={(e) => handleChange("roundOff", e.target.checked)} className="w-4 h-4" /><span className="text-xs">Round Off</span></label>
                 <label className="flex items-center gap-2"><input type="checkbox" checked={settings.soundEnabled !== false} onChange={(e) => handleChange("soundEnabled", e.target.checked)} className="w-4 h-4" /><span className="text-xs">Sound</span></label>
               </div>
+            </div>
+
+            {/* Fixed Daily Expenses */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Fixed Daily Expenses (Auto-added to Cash Book)</label>
+              {(settings.fixedDailyExpenses || []).map((fe, idx) => (
+                <div key={idx} className="flex items-center gap-2 mb-2">
+                  <input type="text" value={fe.category} placeholder="Category"
+                    onChange={(e) => {
+                      const updated = [...(settings.fixedDailyExpenses || [])];
+                      updated[idx] = { ...updated[idx], category: e.target.value };
+                      setSettings({ ...settings, fixedDailyExpenses: updated });
+                    }}
+                    className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm" />
+                  <input type="number" value={fe.amount} placeholder="₹"
+                    onChange={(e) => {
+                      const updated = [...(settings.fixedDailyExpenses || [])];
+                      updated[idx] = { ...updated[idx], amount: Number(e.target.value) };
+                      setSettings({ ...settings, fixedDailyExpenses: updated });
+                    }}
+                    className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-sm" />
+                  <button onClick={() => {
+                    const updated = (settings.fixedDailyExpenses || []).filter((_, i) => i !== idx);
+                    setSettings({ ...settings, fixedDailyExpenses: updated });
+                  }} className="text-red-500 hover:text-red-700 p-1"><HiTrash className="w-4 h-4" /></button>
+                </div>
+              ))}
+              <button onClick={() => {
+                const updated = [...(settings.fixedDailyExpenses || []), { category: "", amount: 0, active: true }];
+                setSettings({ ...settings, fixedDailyExpenses: updated });
+              }} className="text-xs text-coffee font-bold hover:underline flex items-center gap-1">
+                <HiPlus className="w-3 h-3" /> Add Fixed Expense
+              </button>
             </div>
 
             <button onClick={save} disabled={saving} className="w-full h-10 bg-coffee text-white rounded-lg text-sm font-bold hover:bg-coffee-dark transition disabled:opacity-50">

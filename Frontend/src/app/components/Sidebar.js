@@ -17,6 +17,7 @@ import {
   HiClock,
   HiChartBar,
   HiArchive,
+  HiBookOpen,
 } from "react-icons/hi";
 import { BiSolidCoffeeBean } from "react-icons/bi";
 
@@ -30,6 +31,7 @@ const navItems = [
   { id: 4, label: "Sales Summary", icon: HiCurrencyRupee, section: "manage", roles: ["owner","admin","manager"] },
   { id: 5, label: "Daily Report", icon: HiDocumentReport, section: "manage", roles: ["owner","admin","manager"] },
   { id: 6, label: "Expenses", icon: HiCash, section: "manage", roles: ["owner","admin","manager"] },
+  { id: "cashbook", label: "Cash Book", icon: HiBookOpen, section: "manage", roles: ["owner", "admin", "manager", "cashier"] },
   { id: "reports", label: "Reports", icon: HiChartBar, section: "manage", roles: ["owner","admin","manager"] },
   { id: "inventory", label: "Inventory", icon: HiArchive, section: "manage", roles: ["owner","admin","manager"] },
   { id: "tables", label: "Tables", icon: HiViewBoards, section: "manage", roles: ["owner","admin","manager","cashier"] },

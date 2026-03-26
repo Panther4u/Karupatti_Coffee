@@ -41,6 +41,7 @@ router.put(
       autoPrintBill,
       autoPrintKOT,
       soundEnabled,
+      fixedDailyExpenses,
     } = req.body;
 
     let settings = await Settings.findOne();
@@ -67,6 +68,7 @@ router.put(
     if (autoPrintBill !== undefined) settings.autoPrintBill = autoPrintBill;
     if (autoPrintKOT !== undefined) settings.autoPrintKOT = autoPrintKOT;
     if (soundEnabled !== undefined) settings.soundEnabled = soundEnabled;
+    if (fixedDailyExpenses !== undefined) settings.fixedDailyExpenses = fixedDailyExpenses;
 
     await settings.save();
     res.json({ success: true, data: settings });

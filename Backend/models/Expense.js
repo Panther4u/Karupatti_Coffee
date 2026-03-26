@@ -8,6 +8,7 @@ const expenseSchema = new mongoose.Schema(
     type: { type: String, enum: ["in", "out"], default: "out" },
     method: { type: String, default: "Cash" },
     date: { type: String, required: true },
+    source: { type: String, enum: ["manual", "fixed"], default: "manual" },
   },
   { timestamps: true }
 );

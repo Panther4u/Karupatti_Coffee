@@ -21,6 +21,11 @@ const settingsSchema = new mongoose.Schema(
     autoPrintBill: { type: Boolean, default: false },
     autoPrintKOT: { type: Boolean, default: false },
     soundEnabled: { type: Boolean, default: true },
+    fixedDailyExpenses: [{
+      category: { type: String, required: true },
+      amount: { type: Number, required: true, min: 0 },
+      active: { type: Boolean, default: true }
+    }],
   },
   { timestamps: true }
 );

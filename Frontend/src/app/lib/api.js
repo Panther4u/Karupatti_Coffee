@@ -308,3 +308,16 @@ export const reportsExtAPI = {
     apiFetch("/api/reports/customer-stats?startDate=" + s + "&endDate=" + e),
   comparative: (type) => apiFetch("/api/reports/comparative?type=" + type),
 };
+
+// Cash Book
+export const cashbookAPI = {
+  getToday: () => apiFetch("/api/cashbook/today"),
+  getByDate: (date) => apiFetch(`/api/cashbook/${date}`),
+  update: (date, body) => apiFetch(`/api/cashbook/${date}`, { method: "PUT", body: JSON.stringify(body) }),
+  close: (date, body) => apiFetch(`/api/cashbook/${date}/close`, { method: "POST", body: JSON.stringify(body) }),
+  reopen: (date) => apiFetch(`/api/cashbook/${date}/reopen`, { method: "POST" }),
+  history: (params) => {
+    const q = new URLSearchParams(params || {}).toString();
+    return apiFetch(`/api/cashbook/history?${q}`);
+  },
+};
