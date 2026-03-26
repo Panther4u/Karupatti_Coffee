@@ -4,12 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { HiArrowLeft, HiCash, HiTrendingUp, HiTrendingDown, HiLockClosed, HiLockOpen, HiRefresh, HiPlus, HiPencil, HiTrash, HiCheckCircle } from "react-icons/hi";
 import { cashbookAPI, expensesAPI, authAPI } from "@/app/lib/api";
-
-function getISTToday() {
-  const now = new Date();
-  const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
-  return ist.toISOString().split("T")[0];
-}
+import { getISTToday } from "@/app/lib/dateUtils";
 
 export default function CashBookPage() {
   const router = useRouter();

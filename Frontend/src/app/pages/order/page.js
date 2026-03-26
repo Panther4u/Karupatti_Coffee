@@ -39,8 +39,9 @@ import {
   reportsAPI,
 } from "@/app/lib/api";
 import { queueOrder, getPendingCount, syncOrders, cacheData, getCachedData } from "@/app/lib/offlineQueue";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
+import { getISTToday } from "@/app/lib/dateUtils";
+import { calculateSalesSummary, calculateExpenseSummary, aggregatePaymentMethods } from "@/app/lib/calculations";
+import { clearAuth } from "@/app/lib/authUtils";
 const cleanUrl = (u) => (u ? u.replace(/[\r\n]+/g, "").trim().replace(/%20/g, " ") : "");
 // Product.type (1-13) → category name
 const categoryMap = {1:"Tea",2:"Coffee",3:"Dairy Products",4:"Snacks",5:"Evening Special",6:"Fresh Juice",7:"Cool Drinks",8:"Ice Cream",9:"Karupatti Ice Cream",10:"Karupatti Snacks",11:"Other Snacks",12:"Biscuits & Cakes",13:"Parcel"};
@@ -704,9 +705,7 @@ export default function OrderPage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("isAdmin");
-    localStorage.removeItem("adminLoginTime");
+    clearAuth();
     router.push("/");
   };
 
@@ -2364,9 +2363,7 @@ function SalesSummaryPopup({ onClose }) {
 
   useEffect(() => { fetchData(date); }, [date]);
 
-  const totalSales = data.reduce((s, i) => s + (i.totalSales || 0), 0);
-  const totalCost = data.reduce((s, i) => s + (i.totalCost || 0), 0);
-  const totalProfit = totalSales - totalCost;
+  const { totalSales, totalCost, grossProfit: totalProfit } = calculateSalesSummary(data);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4" onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
@@ -2411,7 +2408,7 @@ function SalesSummaryPopup({ onClose }) {
 
 // ===== DAILY REPORT POPUP =====
 function DailyReportPopup({ onClose }) {
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(getISTToday());
   const [sales, setSales] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [payments, setPayments] = useState({});
@@ -2431,16 +2428,12 @@ function DailyReportPopup({ onClose }) {
       setExpenses(expData);
       const o = oRaw?.data ?? oRaw;
       const orders = o?.orders || o;
-      const pm = (Array.isArray(orders) ? orders : []).reduce((a, r) => { a[r.paymentMethod || "Other"] = (a[r.paymentMethod || "Other"] || 0) + (r.grandTotal || 0); return a; }, {});
-      setPayments(pm);
+      setPayments(aggregatePaymentMethods(Array.isArray(orders) ? orders : []));
     }).catch(() => {}).finally(() => setLoading(false));
   }, [date]);
 
-  const totalSales = sales.reduce((s, i) => s + (i.totalSales || 0), 0);
-  const totalCost = sales.reduce((s, i) => s + (i.totalCost || 0), 0);
-  const grossProfit = totalSales - totalCost;
-  const totalExpenses = expenses.filter(x => x.type === "out").reduce((s, e) => s + Number(e.amount || 0), 0)
-                      - expenses.filter(x => x.type === "in").reduce((s, e) => s + Number(e.amount || 0), 0);
+  const { totalSales, totalCost, grossProfit } = calculateSalesSummary(sales);
+  const { netExpenses: totalExpenses } = calculateExpenseSummary(expenses);
   const netProfit = grossProfit - totalExpenses;
 
   return (
@@ -2504,7 +2497,7 @@ function DailyReportPopup({ onClose }) {
 
 // ===== DAILY EXPENSE POPUP =====
 function DailyExpensePopup({ onClose }) {
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(getISTToday());
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ category: "", amount: "", notes: "", type: "out", method: "Cash" });
@@ -2522,8 +2515,7 @@ function DailyExpensePopup({ onClose }) {
 
   useEffect(() => { fetchExpenses(); }, [date]);
 
-  const totalIn = expenses.filter((e) => e.type === "in").reduce((s, e) => s + Number(e.amount || 0), 0);
-  const totalOut = expenses.filter((e) => e.type === "out").reduce((s, e) => s + Number(e.amount || 0), 0);
+  const { totalIn, totalOut } = calculateExpenseSummary(expenses);
 
   const handleSubmit = async () => {
     if (!form.category || !form.amount) { setMsg("Category & amount required"); return; }
@@ -2609,14 +2601,10 @@ function ProductsPopup({ onClose, onProductsChanged }) {
   const [filterCat, setFilterCat] = useState("");
 
   const cats = {1:"Tea",2:"Coffee",3:"Dairy Products",4:"Snacks",5:"Evening Special",6:"Fresh Juice",7:"Cool Drinks",8:"Ice Cream",9:"Karupatti Ice Cream",10:"Karupatti Snacks",11:"Other Snacks",12:"Biscuits & Cakes",13:"Parcel"};
-  const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
-  const headers = () => { const t = localStorage.getItem("token"); const h = { "Content-Type": "application/json" }; if (t) h["Authorization"] = `Bearer ${t}`; return h; };
 
   const fetchItems = async () => {
     try {
-      const res = await fetch(`${API}/api/products?available=true`, { headers: headers() });
-      const raw = await res.json();
-      const data = raw?.data ?? raw;
+      const data = await productsAPI.getAll({ available: true });
       setItems(Array.isArray(data) ? data.map((i) => ({ ...i, id: i._id || i.id })) : []);
     } catch {} finally { setLoading(false); }
   };
@@ -2630,17 +2618,14 @@ function ProductsPopup({ onClose, onProductsChanged }) {
     setMsg("");
     try {
       const body = { ...form, price: Number(form.price), purchaseRate: Number(form.purchaseRate || 0), type: Number(form.type) };
-      const url = editId ? `${API}/api/products/${editId}` : `${API}/api/products`;
-      const res = await fetch(url, { method: editId ? "PUT" : "POST", headers: headers(), body: JSON.stringify(body) });
-      const data = await res.json();
-      if (res.ok) { setMsg(editId ? "Updated!" : "Added!"); resetForm(); fetchItems(); if (onProductsChanged) onProductsChanged(); setTimeout(() => setMsg(""), 2000); }
-      else setMsg(data.error || "Failed");
-    } catch { setMsg("Error saving"); }
+      if (editId) { await productsAPI.update(editId, body); } else { await productsAPI.create(body); }
+      setMsg(editId ? "Updated!" : "Added!"); resetForm(); fetchItems(); if (onProductsChanged) onProductsChanged(); setTimeout(() => setMsg(""), 2000);
+    } catch (err) { setMsg(err.message || "Error saving"); }
   };
 
   const handleDelete = async (id, name) => {
     if (!confirm(`Delete "${name}"?`)) return;
-    try { await fetch(`${API}/api/products/${id}`, { method: "DELETE", headers: headers() }); fetchItems(); if (onProductsChanged) onProductsChanged(); setMsg("Deleted"); setTimeout(() => setMsg(""), 2000); }
+    try { await productsAPI.delete(id); fetchItems(); if (onProductsChanged) onProductsChanged(); setMsg("Deleted"); setTimeout(() => setMsg(""), 2000); }
     catch { setMsg("Delete failed"); }
   };
 

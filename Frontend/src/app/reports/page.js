@@ -4,14 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HiChevronLeft, HiDownload, HiPrinter } from "react-icons/hi";
 import { reportsExtAPI } from "@/app/lib/api";
+import { getISTToday } from "@/app/lib/dateUtils";
 
 export default function ReportsPage() {
   const router = useRouter();
   const [isVerified, setIsVerified] = useState(false);
   const [activeTab, setActiveTab] = useState("hourly");
   const [dateRange, setDateRange] = useState({
-    startDate: new Date().toISOString().split("T")[0],
-    endDate: new Date().toISOString().split("T")[0],
+    startDate: getISTToday(),
+    endDate: getISTToday(),
   });
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
@@ -77,8 +78,7 @@ export default function ReportsPage() {
   };
 
   const handleQuickDate = (type) => {
-    const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
+    const todayStr = getISTToday();
     let start, end;
 
     switch (type) {
@@ -87,6 +87,7 @@ export default function ReportsPage() {
         end = todayStr;
         break;
       case "week": {
+        const now = new Date();
         const weekAgo = new Date(now);
         weekAgo.setDate(weekAgo.getDate() - 7);
         start = weekAgo.toISOString().split("T")[0];
@@ -94,6 +95,7 @@ export default function ReportsPage() {
         break;
       }
       case "month": {
+        const now = new Date();
         const monthAgo = new Date(now);
         monthAgo.setDate(monthAgo.getDate() - 30);
         start = monthAgo.toISOString().split("T")[0];

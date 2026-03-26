@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HiChevronLeft, HiPlus, HiChevronDown, HiX } from "react-icons/hi";
 import { stockAPI, purchasesAPI, productsAPI } from "@/app/lib/api";
+import { getISTToday } from "@/app/lib/dateUtils";
 
 export default function InventoryPage() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function InventoryPage() {
     supplier: "",
     phone: "",
     invoiceNumber: "",
-    date: new Date().toISOString().split("T")[0],
+    date: getISTToday(),
     items: [],
   });
   const [searchProduct, setSearchProduct] = useState("");
@@ -246,7 +247,7 @@ export default function InventoryPage() {
         supplier: "",
         phone: "",
         invoiceNumber: "",
-        date: new Date().toISOString().split("T")[0],
+        date: getISTToday(),
         items: [],
       });
 

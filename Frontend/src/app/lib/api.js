@@ -4,6 +4,8 @@
  * Uses JWT auth with token stored in localStorage.
  */
 
+import { clearAuth } from "./authUtils";
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5001";
 
 /**
@@ -32,9 +34,7 @@ async function apiFetch(endpoint, options = {}) {
 
   if (res.status === 401) {
     if (typeof window !== "undefined" && !endpoint.includes("/api/auth/me")) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("isAdmin");
-      localStorage.removeItem("adminLoginTime");
+      clearAuth();
       window.location.href = "/";
     }
     throw new Error("Unauthorized — session expired");

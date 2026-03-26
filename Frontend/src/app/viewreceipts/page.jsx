@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getSocket } from "@/app/lib/socket";
 import { authAPI, receiptsAPI, productsAPI } from "@/app/lib/api";
+import { clearAuth } from "@/app/lib/authUtils";
 
 /** Toast notification component */
 function Toast({ message, onClose }) {
@@ -67,9 +68,7 @@ export default function ViewReceipts() {
     authAPI.me()
       .then(() => setAuthChecked(true))
       .catch(() => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("isAdmin");
-        localStorage.removeItem("adminLoginTime");
+        clearAuth();
         router.replace("/");
       });
   }, [router]);

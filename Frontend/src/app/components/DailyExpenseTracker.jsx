@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { HiPencil, HiTrash } from "react-icons/hi";
 import { expensesAPI } from "@/app/lib/api";
+import { getISTToday } from "@/app/lib/dateUtils";
+import { calculateExpenseSummary } from "@/app/lib/calculations";
 
 export default function DailyExpenseTracker({ selectedDate: initialDate }) {
   const [selectedDate, setSelectedDate] = useState(
-    initialDate || new Date().toISOString().split("T")[0]
+    initialDate || getISTToday()
   );
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -30,8 +32,7 @@ export default function DailyExpenseTracker({ selectedDate: initialDate }) {
       .finally(() => setLoading(false));
   }, [selectedDate]);
 
-  const totalIn = expenses.filter((e) => (e.type || "").toLowerCase() === "in").reduce((s, e) => s + Number(e.amount || 0), 0);
-  const totalOut = expenses.filter((e) => (e.type || "").toLowerCase() === "out").reduce((s, e) => s + Number(e.amount || 0), 0);
+  const { totalIn, totalOut } = calculateExpenseSummary(expenses);
   const balance = totalIn - totalOut;
 
   const resetForm = () => { setCategory(""); setAmount(""); setNotes(""); setType("out"); setMethod("Cash"); setEditingId(null); };

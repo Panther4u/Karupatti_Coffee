@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HiShoppingCart, HiCurrencyRupee, HiTrendingUp, HiTrendingDown, HiReceiptRefund, HiDocumentReport, HiArrowLeft, HiRefresh, HiCash } from "react-icons/hi";
 import { authAPI, reportsAPI, ordersAPI, expensesAPI, cashbookAPI } from "@/app/lib/api";
+import { getISTToday } from "@/app/lib/dateUtils";
+import { calculateSalesSummary, calculateExpenseSummary, aggregatePaymentMethods } from "@/app/lib/calculations";
+import { clearAuth } from "@/app/lib/authUtils";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -15,15 +18,13 @@ export default function Dashboard() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { router.replace("/"); return; }
-    authAPI.me().then(() => setOk(true)).catch(() => { localStorage.removeItem("token"); router.replace("/"); });
+    authAPI.me().then(() => setOk(true)).catch(() => { clearAuth(); router.replace("/"); });
   }, [router]);
 
   const fetchAll = () => {
     if (!ok) return;
     setLoading(true);
-    const now = new Date();
-    const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
-    const today = ist.toISOString().split("T")[0];
+    const today = getISTToday();
     Promise.all([
       reportsAPI.salesSummaryByDate(today).catch(() => []),
       ordersAPI.getAll({ limit: 10 }).catch(() => ({ orders: [] })),
@@ -33,15 +34,13 @@ export default function Dashboard() {
     ]).then(([sales, ordData, exps, todaySummary, cashbook]) => {
       const s = Array.isArray(sales) ? sales : [];
       const expData = exps?.expenses || (Array.isArray(exps) ? exps : []);
-      const ts = s.reduce((a, i) => a + (i.totalSales || 0), 0);
-      const tc = s.reduce((a, i) => a + (i.totalCost || 0), 0);
-      const te = expData.filter(x => x.type === "out").reduce((s, x) => s + Number(x.amount || 0), 0)
-               - expData.filter(x => x.type === "in").reduce((s, x) => s + Number(x.amount || 0), 0);
+      const { totalSales: ts, totalCost: tc } = calculateSalesSummary(s);
+      const { netExpenses: te } = calculateExpenseSummary(expData);
       const todayOrders = todaySummary?.orders || [];
       const orderCount = todaySummary?.totalOrders || (Array.isArray(todayOrders) ? todayOrders.length : 0);
       const cashInHand = cashbook?.calculatedClosing ?? 0;
       setStats({ orders: orderCount, revenue: ts, cost: tc, expenses: te, profit: ts - tc - te, cashInHand });
-      const pm = (Array.isArray(todayOrders) ? todayOrders : []).reduce((a, o) => { a[o.paymentMethod || "Other"] = (a[o.paymentMethod || "Other"] || 0) + (o.grandTotal || 0); return a; }, {});
+      const pm = aggregatePaymentMethods(todayOrders);
       setPayments(pm);
       const orders = ordData.orders || ordData;
       setRecent(Array.isArray(orders) ? orders.slice(0, 10) : []);
