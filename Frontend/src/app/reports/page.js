@@ -165,23 +165,23 @@ export default function ReportsPage() {
   return (
     <div className="min-h-[100dvh] bg-gray-50">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white shadow-sm border-b border-gray-100">
+      <header className="sticky top-0 z-30 bg-coffee-dark text-cream shadow-md">
         <div className="flex items-center justify-between px-3 sm:px-5 py-3 h-auto min-h-[52px]">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
-              className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+              className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
               aria-label="Back"
             >
-              <HiChevronLeft className="h-5 w-5 text-coffee" />
+              <HiChevronLeft className="h-5 w-5 text-cream" />
             </button>
-            <h1 className="text-lg sm:text-xl font-bold text-coffee-dark font-display">Reports</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-cream font-display">Reports</h1>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => handleExport("csv")}
               disabled={!data || loading}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 text-xs sm:text-sm font-medium hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-white/10 text-cream text-xs sm:text-sm font-medium hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <HiDownload className="w-4 h-4" />
               <span className="hidden sm:inline">CSV</span>
@@ -189,7 +189,7 @@ export default function ReportsPage() {
             <button
               onClick={() => handleExport("print")}
               disabled={!data || loading}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-gray-200 text-gray-700 text-xs sm:text-sm font-medium hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-white/10 text-cream text-xs sm:text-sm font-medium hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <HiPrinter className="w-4 h-4" />
               <span className="hidden sm:inline">Print</span>
@@ -198,7 +198,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Date Range Picker */}
-        <div className="px-3 sm:px-5 py-3 border-t border-gray-100 bg-white">
+        <div className="px-3 sm:px-5 py-3 border-t border-gray-200 bg-gray-50">
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2">
               <button
@@ -240,7 +240,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="border-t border-gray-100 overflow-x-auto">
+        <div className="border-t border-gray-200 overflow-x-auto bg-white">
           <nav className="flex gap-1 px-3 sm:px-5 py-2 no-scrollbar">
             {["hourly", "category", "products", "payments", "expenses", "customers", "compare"].map((tab) => (
               <button
@@ -249,7 +249,7 @@ export default function ReportsPage() {
                 className={`whitespace-nowrap px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all ${
                   activeTab === tab
                     ? "bg-accent text-coffee-dark shadow-sm"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}

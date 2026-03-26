@@ -255,7 +255,7 @@ export default function ViewReceipts() {
   if (loading) return <p className="p-4 text-center text-coffee-dark min-h-[100dvh] flex items-center justify-center">Loading receipts...</p>;
 
   return (
-    <div className="w-full flex justify-center font-mono bg-white min-h-[100dvh] p-3 sm:p-4">
+    <div className="w-full flex justify-center font-mono bg-gray-50 min-h-[100dvh] p-3 sm:p-4">
       {/* Toast Notification */}
       <AnimatePresence>
         {toast && <Toast message={toast} onClose={dismissToast} />}
@@ -263,18 +263,18 @@ export default function ViewReceipts() {
 
       <div className="w-full">
         {/* Sticky search/back header */}
-        <div className="sticky top-0 z-10 bg-white pb-3 pt-1">
+        <div className="sticky top-0 z-10 bg-coffee-dark text-cream rounded-b-xl shadow-md px-3 sm:px-4 pb-3 pt-3 mb-3">
           <div className="mb-3 flex items-center gap-2">
             <button
               onClick={() => router.push("/pages/order")}
-              className="flex items-center gap-1 text-sm text-coffee-light hover:text-coffee-dark transition min-h-[44px] min-w-[44px]"
+              className="flex items-center gap-1 text-sm text-cream/80 hover:text-cream transition min-h-[44px] min-w-[44px]"
             >
               <ArrowLeftIcon className="h-5 w-5" /> Back to Order
             </button>
           </div>
 
-          <h1 className="text-xl sm:text-2xl font-bold mb-3 flex items-center gap-2 text-coffee-dark font-display">
-            <HiReceiptRefund className="text-coffee w-6 h-6" /> All Receipts
+          <h1 className="text-xl sm:text-2xl font-bold mb-3 flex items-center gap-2 text-cream font-display">
+            <HiReceiptRefund className="text-cream w-6 h-6" /> All Receipts
           </h1>
 
           {/* Search input */}
@@ -283,7 +283,7 @@ export default function ViewReceipts() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search receipts..."
-            className="w-full p-3 h-12 border border-tan rounded-lg text-sm text-coffee-dark bg-white focus:ring-2 focus:ring-accent"
+            className="w-full p-3 h-12 border border-white/20 rounded-lg text-sm text-coffee-dark bg-white focus:ring-2 focus:ring-accent"
           />
         </div>
 

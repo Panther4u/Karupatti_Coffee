@@ -281,22 +281,22 @@ export default function InventoryPage() {
   return (
     <div className="min-h-[100dvh] bg-gray-50">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white shadow-sm border-b border-gray-100">
+      <header className="sticky top-0 z-30 bg-coffee-dark text-cream shadow-md">
         <div className="flex items-center justify-between px-3 sm:px-5 py-3 h-auto min-h-[52px]">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
-              className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+              className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
               aria-label="Back"
             >
-              <HiChevronLeft className="h-5 w-5 text-coffee" />
+              <HiChevronLeft className="h-5 w-5 text-cream" />
             </button>
-            <h1 className="text-lg sm:text-xl font-bold text-coffee-dark font-display">Inventory</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-cream font-display">Inventory</h1>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="border-t border-gray-100 overflow-x-auto">
+        <div className="border-t border-white/10 overflow-x-auto bg-white">
           <nav className="flex gap-1 px-3 sm:px-5 py-2 no-scrollbar">
             {["overview", "purchase", "history", "log"].map((tab) => (
               <button
@@ -305,7 +305,7 @@ export default function InventoryPage() {
                 className={`whitespace-nowrap px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all ${
                   activeTab === tab
                     ? "bg-accent text-coffee-dark shadow-sm"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
                 {tab === "overview"
@@ -520,7 +520,7 @@ function StockOverview({
                       setAdjustingId(prod.id);
                       setAdjustForm({ qty: 0, type: "received", reason: "" });
                     }}
-                    className="w-full px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+                    className="w-full px-3 py-1.5 bg-coffee text-cream text-sm font-medium rounded hover:bg-coffee-dark transition-colors"
                   >
                     Adjust Stock
                   </button>
@@ -839,7 +839,7 @@ function StockLog({ log, loading, logTypeFilter, setLogTypeFilter }) {
                     </td>
                     <td className="px-4 py-2 text-coffee-dark font-medium">{entry.product || entry.productName}</td>
                     <td className="px-4 py-2 text-center">
-                      <span className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                      <span className="px-2 py-1 rounded text-xs font-medium bg-accent/30 text-coffee-dark">
                         {entry.type}
                       </span>
                     </td>

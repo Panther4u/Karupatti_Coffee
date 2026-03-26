@@ -183,7 +183,7 @@ export default function CashBookPage() {
           <HiArrowLeft className="w-5 h-5" />
         </button>
         <HiCash className="w-6 h-6" />
-        <h1 className="text-lg font-bold flex-1">Cash Book</h1>
+        <h1 className="text-lg font-bold flex-1 font-display">Cash Book</h1>
         <button onClick={fetchData} className="p-2 hover:bg-white/10 rounded-lg">
           <HiRefresh className="w-5 h-5" />
         </button>
@@ -217,10 +217,10 @@ export default function CashBookPage() {
           ) : data ? (
             <>
               {/* Opening Cash */}
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="bg-accent/20 border border-accent rounded-xl p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold text-blue-500 uppercase">Opening Cash</p>
+                    <p className="text-xs font-bold text-coffee uppercase">Opening Cash</p>
                     {editingOpening ? (
                       <div className="flex items-center gap-2 mt-1">
                         <input type="number" value={openingInput} onChange={(e) => setOpeningInput(e.target.value)}
@@ -229,13 +229,13 @@ export default function CashBookPage() {
                         <button onClick={() => setEditingOpening(false)} className="text-gray-400 text-sm">Cancel</button>
                       </div>
                     ) : (
-                      <p className="text-2xl font-bold text-blue-700">{"\u20B9"}{(data.openingCash || 0).toLocaleString("en-IN")}</p>
+                      <p className="text-2xl font-bold text-coffee-dark">{"\u20B9"}{(data.openingCash || 0).toLocaleString("en-IN")}</p>
                     )}
                   </div>
                   {isOpen && !editingOpening && (
                     <button onClick={() => { setOpeningInput(String(data.openingCash || 0)); setEditingOpening(true); }}
-                      className="p-2 hover:bg-blue-100 rounded-lg">
-                      <HiPencil className="w-4 h-4 text-blue-500" />
+                      className="p-2 hover:bg-accent/30 rounded-lg">
+                      <HiPencil className="w-4 h-4 text-coffee" />
                     </button>
                   )}
                 </div>

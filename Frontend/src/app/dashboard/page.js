@@ -60,12 +60,12 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-30 bg-white shadow-sm border-b px-3 sm:px-5 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-coffee-dark text-cream shadow-md px-3 sm:px-5 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <button onClick={() => router.push("/pages/order")} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100"><HiArrowLeft className="h-5 w-5 text-coffee" /></button>
-          <h1 className="text-base sm:text-lg font-bold text-coffee-dark font-display">Dashboard</h1>
+          <button onClick={() => router.push("/pages/order")} className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20"><HiArrowLeft className="h-5 w-5 text-cream" /></button>
+          <h1 className="text-base sm:text-lg font-bold text-cream font-display">Dashboard</h1>
         </div>
-        <button onClick={fetchAll} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"><HiRefresh className="w-4 h-4 text-gray-500" /></button>
+        <button onClick={fetchAll} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20"><HiRefresh className="w-4 h-4 text-cream" /></button>
       </header>
 
       <div className="px-3 sm:px-5 py-4 space-y-4 max-w-4xl mx-auto">
@@ -75,7 +75,7 @@ export default function Dashboard() {
           <div className="bg-red-500 text-white rounded-xl p-3"><p className="text-[10px] opacity-70">Expenses</p><p className="text-lg font-bold font-mono">₹{stats.expenses.toLocaleString("en-IN")}</p></div>
           <div className={`${stats.profit >= 0 ? "bg-green-600" : "bg-red-600"} text-white rounded-xl p-3`}><p className="text-[10px] opacity-70">Net Profit</p><p className="text-lg font-bold font-mono">₹{stats.profit.toLocaleString("en-IN")}</p></div>
         </div>
-        <button onClick={() => router.push("/cashbook")} className="w-full bg-blue-600 text-white rounded-xl p-3 text-left hover:bg-blue-700 transition flex items-center gap-3">
+        <button onClick={() => router.push("/cashbook")} className="w-full bg-coffee text-cream rounded-xl p-3 text-left hover:bg-coffee-dark transition flex items-center gap-3">
           <HiCash className="w-6 h-6 opacity-80" />
           <div>
             <p className="text-[10px] opacity-70">Cash in Hand</p>
