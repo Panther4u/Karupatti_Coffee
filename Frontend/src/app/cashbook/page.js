@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { HiArrowLeft, HiCash, HiTrendingUp, HiTrendingDown, HiLockClosed, HiLockOpen, HiRefresh, HiPlus, HiPencil, HiTrash, HiCheckCircle } from "react-icons/hi";
-import { cashbookAPI, expensesAPI, authAPI } from "@/app/lib/api";
+import { cashbookAPI, expensesAPI, authAPI, fundsAPI } from "@/app/lib/api";
 import { getISTToday } from "@/app/lib/dateUtils";
 
 export default function CashBookPage() {
@@ -30,6 +30,12 @@ export default function CashBookPage() {
   const [editingOpening, setEditingOpening] = useState(false);
   const [openingInput, setOpeningInput] = useState("");
 
+  // Fund pots
+  const [fundPots, setFundPots] = useState([]);
+  const [showPayoutDialog, setShowPayoutDialog] = useState(false);
+  const [payoutForm, setPayoutForm] = useState({ category: "", amount: "", notes: "" });
+  const [payingOut, setPayingOut] = useState(false);
+
   // Auth check
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -49,6 +55,10 @@ export default function CashBookPage() {
     } catch (err) {
       console.error("Failed to load cash book:", err);
     }
+    try {
+      const fundData = await fundsAPI.summary();
+      setFundPots(fundData?.pots || []);
+    } catch {}
     setLoading(false);
   }, [selectedDate]);
 
@@ -283,12 +293,46 @@ export default function CashBookPage() {
                 </p>
               </div>
 
+              {/* Fund Pots - Daily Savings */}
+              {fundPots.length > 0 && (
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                  <p className="text-xs font-bold text-purple-600 uppercase mb-3 flex items-center gap-1">
+                    <HiCash className="w-4 h-4" /> Saved Funds
+                  </p>
+                  <div className="space-y-2">
+                    {fundPots.map((pot) => (
+                      <div key={pot._id} className="flex justify-between items-center bg-white rounded-lg p-3 border border-purple-100">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{pot.category}</p>
+                          <p className="text-[10px] text-gray-400">Total saved: {"\u20B9"}{pot.totalAllocated?.toLocaleString("en-IN")} | Paid: {"\u20B9"}{pot.totalPaidOut?.toLocaleString("en-IN")}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-purple-700">{"\u20B9"}{pot.balance?.toLocaleString("en-IN")}</p>
+                          {isOpen && pot.balance > 0 && (
+                            <button onClick={() => { setPayoutForm({ category: pot.category, amount: "", notes: "" }); setShowPayoutDialog(true); }}
+                              className="text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded font-bold hover:bg-purple-200">Pay</button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 text-right">
+                    <p className="text-sm font-bold text-purple-700">
+                      Total Saved: {"\u20B9"}{fundPots.reduce((s, p) => s + (p.balance || 0), 0).toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Summary */}
               <div className="bg-coffee-dark text-cream rounded-xl p-5">
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="opacity-70">Opening Cash</span><span className="font-bold">{"\u20B9"}{(data.openingCash || 0).toLocaleString("en-IN")}</span></div>
                   <div className="flex justify-between text-green-300"><span>+ Cash In</span><span className="font-bold">{"\u20B9"}{((data.cashSales?.total || 0) + (data.cashIn?.total || 0)).toLocaleString("en-IN")}</span></div>
                   <div className="flex justify-between text-red-300"><span>- Cash Out</span><span className="font-bold">{"\u20B9"}{((data.cashOut?.total || 0) + (data.purchases?.total || 0)).toLocaleString("en-IN")}</span></div>
+                  {fundPots.length > 0 && (
+                    <div className="flex justify-between text-purple-300"><span>Funds Saved</span><span className="font-bold">{"\u20B9"}{fundPots.reduce((s, p) => s + (p.balance || 0), 0).toLocaleString("en-IN")}</span></div>
+                  )}
                   <div className="border-t border-cream/20 pt-2 flex justify-between text-xl">
                     <span className="font-bold">Cash in Hand</span>
                     <span className="font-bold">{"\u20B9"}{(data.calculatedClosing || 0).toLocaleString("en-IN")}</span>
@@ -420,6 +464,50 @@ export default function CashBookPage() {
               <button onClick={handleAddExpense} disabled={savingExpense || !expenseForm.category || !expenseForm.amount}
                 className="flex-1 py-3 bg-coffee text-cream rounded-xl font-bold hover:bg-coffee-dark disabled:opacity-50">
                 {savingExpense ? "Saving..." : "Add"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payout Dialog */}
+      {showPayoutDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowPayoutDialog(false)}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold mb-1">Pay from Fund</h3>
+            <p className="text-xs text-gray-400 mb-4">Paying from <span className="font-bold text-purple-700">{payoutForm.category}</span> pot</p>
+            <div className="mb-3">
+              <label className="text-xs font-bold text-gray-500 uppercase">Available Balance</label>
+              <p className="text-xl font-bold text-purple-700">{"\u20B9"}{(fundPots.find(p => p.category === payoutForm.category)?.balance || 0).toLocaleString("en-IN")}</p>
+            </div>
+            <div className="mb-3">
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount to Pay</label>
+              <input type="number" value={payoutForm.amount} onChange={(e) => setPayoutForm({...payoutForm, amount: e.target.value})}
+                className="w-full p-3 border-2 border-gray-300 rounded-xl text-xl font-bold text-center focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none" autoFocus />
+            </div>
+            <div className="mb-4">
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Notes</label>
+              <input type="text" value={payoutForm.notes} onChange={(e) => setPayoutForm({...payoutForm, notes: e.target.value})}
+                placeholder="e.g. March rent paid" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setShowPayoutDialog(false)} className="flex-1 py-3 border border-gray-300 rounded-xl font-bold text-gray-600">Cancel</button>
+              <button onClick={async () => {
+                const amount = parseFloat(payoutForm.amount);
+                if (!amount || amount <= 0) return;
+                setPayingOut(true);
+                try {
+                  await fundsAPI.payout({ category: payoutForm.category, amount, notes: payoutForm.notes });
+                  setShowPayoutDialog(false);
+                  setPayoutForm({ category: "", amount: "", notes: "" });
+                  fetchData();
+                } catch (err) {
+                  alert(err.message || "Payout failed");
+                }
+                setPayingOut(false);
+              }} disabled={payingOut || !payoutForm.amount}
+                className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50">
+                {payingOut ? "Processing..." : "Pay Out"}
               </button>
             </div>
           </div>

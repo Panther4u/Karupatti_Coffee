@@ -5,6 +5,8 @@ const Order = require("../models/Order");
 const Expense = require("../models/Expense");
 const Purchase = require("../models/Purchase");
 const Settings = require("../models/Settings");
+const FundPot = require("../models/FundPot");
+const FundTransaction = require("../models/FundTransaction");
 const { verifyToken } = require("../middleware/auth");
 const roleCheck = require("../middleware/roleCheck");
 const asyncHandler = require("../middleware/asyncHandler");
@@ -34,11 +36,17 @@ async function aggregateCashBook(dateStr) {
   const purchases = await Purchase.find({ createdAt: { $gte: dayStart, $lte: dayEnd } });
   const totalPurchases = purchases.reduce((s, p) => s + (p.grandTotal || 0), 0);
 
+  // Fund pot totals
+  const fundPots = await FundPot.find().sort({ category: 1 });
+  const totalFundsSaved = fundPots.reduce((s, p) => s + p.balance, 0);
+
   return {
     cashSales: { total: cashSalesTotal, count: cashOrders.length },
     cashIn: { total: totalCashIn, entries: cashInEntries },
     cashOut: { total: totalCashOut, entries: cashOutEntries },
     purchases: { total: totalPurchases, count: purchases.length, entries: purchases },
+    fundPots,
+    totalFundsSaved,
   };
 }
 
@@ -65,15 +73,46 @@ router.get("/today", verifyToken, asyncHandler(async (req, res) => {
       // Check if already exists (safety)
       const exists = await Expense.findOne({ date: dateStr, category: fe.category, source: "fixed" });
       if (!exists) {
-        await Expense.create({
-          category: fe.category,
-          amount: fe.amount,
-          type: "out",
-          method: "Cash",
-          date: dateStr,
-          source: "fixed",
-          notes: "Auto: Fixed daily expense",
-        });
+        if (fe.isFund) {
+          // Fund allocation: update pot balance and record transaction
+          const pot = await FundPot.findOneAndUpdate(
+            { category: fe.category },
+            { $inc: { balance: fe.amount, totalAllocated: fe.amount } },
+            { upsert: true, new: true }
+          );
+
+          await FundTransaction.create({
+            potCategory: fe.category,
+            type: "allocation",
+            amount: fe.amount,
+            date: dateStr,
+            notes: "Daily allocation",
+            balanceAfter: pot.balance,
+            userId: req.user?.id,
+          });
+
+          // Also create an Expense so it shows in cash out
+          await Expense.create({
+            category: fe.category,
+            amount: fe.amount,
+            type: "out",
+            method: "Cash",
+            date: dateStr,
+            source: "fixed",
+            notes: `Fund: ${fe.category}`,
+          });
+        } else {
+          // Direct expense (original behavior)
+          await Expense.create({
+            category: fe.category,
+            amount: fe.amount,
+            type: "out",
+            method: "Cash",
+            date: dateStr,
+            source: "fixed",
+            notes: "Auto: Fixed daily expense",
+          });
+        }
       }
     }
 

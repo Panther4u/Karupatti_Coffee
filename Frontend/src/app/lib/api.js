@@ -321,3 +321,15 @@ export const cashbookAPI = {
     return apiFetch(`/api/cashbook/history?${q}`);
   },
 };
+
+// Funds
+export const fundsAPI = {
+  getPots: () => apiFetch("/api/funds/pots"),
+  allocateDaily: (date) => apiFetch("/api/funds/allocate-daily", { method: "POST", body: JSON.stringify({ date }) }),
+  payout: (body) => apiFetch("/api/funds/payout", { method: "POST", body: JSON.stringify(body) }),
+  transactions: (params) => {
+    const q = new URLSearchParams(params || {}).toString();
+    return apiFetch(`/api/funds/transactions?${q}`);
+  },
+  summary: () => apiFetch("/api/funds/summary"),
+};

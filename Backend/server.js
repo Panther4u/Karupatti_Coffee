@@ -31,6 +31,7 @@ const discountRoutes = require("./routes/discounts");
 const stockRoutes = require("./routes/stock");
 const purchaseRoutes = require("./routes/purchases");
 const cashbookRoutes = require("./routes/cashbook");
+const fundsRoutes = require("./routes/funds");
 
 const app = express();
 app.set("trust proxy", 1); // Trust first proxy (nginx)
@@ -139,6 +140,7 @@ app.use("/api/discounts", discountRoutes);
 app.use("/api/stock", stockRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/cashbook", cashbookRoutes);
+app.use("/api/funds", fundsRoutes);
 
 // ImageKit Auth endpoint (singleton, requires auth)
 let imagekitInstance = null;

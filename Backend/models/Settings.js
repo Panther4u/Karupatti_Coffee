@@ -24,7 +24,8 @@ const settingsSchema = new mongoose.Schema(
     fixedDailyExpenses: [{
       category: { type: String, required: true },
       amount: { type: Number, required: true, min: 0 },
-      active: { type: Boolean, default: true }
+      active: { type: Boolean, default: true },
+      isFund: { type: Boolean, default: false }  // true = daily allocation to pot, false = direct expense
     }],
   },
   { timestamps: true }

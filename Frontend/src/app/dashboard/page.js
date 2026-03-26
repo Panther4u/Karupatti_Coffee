@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HiShoppingCart, HiCurrencyRupee, HiTrendingUp, HiTrendingDown, HiReceiptRefund, HiDocumentReport, HiArrowLeft, HiRefresh, HiCash } from "react-icons/hi";
-import { authAPI, reportsAPI, ordersAPI, expensesAPI, cashbookAPI } from "@/app/lib/api";
+import { authAPI, reportsAPI, ordersAPI, expensesAPI, cashbookAPI, fundsAPI } from "@/app/lib/api";
 import { getISTToday } from "@/app/lib/dateUtils";
 import { calculateSalesSummary, calculateExpenseSummary, aggregatePaymentMethods } from "@/app/lib/calculations";
 import { clearAuth } from "@/app/lib/authUtils";
@@ -11,7 +11,7 @@ export default function Dashboard() {
   const router = useRouter();
   const [ok, setOk] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ orders: 0, revenue: 0, expenses: 0, cost: 0, profit: 0, cashInHand: 0 });
+  const [stats, setStats] = useState({ orders: 0, revenue: 0, expenses: 0, cost: 0, profit: 0, cashInHand: 0, fundsSaved: 0 });
   const [recent, setRecent] = useState([]);
   const [payments, setPayments] = useState({});
 
@@ -31,7 +31,8 @@ export default function Dashboard() {
       expensesAPI.getByDate(today).catch(() => []),
       ordersAPI.getToday().catch(() => ({ totalOrders: 0, orders: [] })),
       cashbookAPI.getToday().catch(() => null),
-    ]).then(([sales, ordData, exps, todaySummary, cashbook]) => {
+      fundsAPI.summary().catch(() => null),
+    ]).then(([sales, ordData, exps, todaySummary, cashbook, fundSummary]) => {
       const s = Array.isArray(sales) ? sales : [];
       const expData = exps?.expenses || (Array.isArray(exps) ? exps : []);
       const { totalSales: ts, totalCost: tc } = calculateSalesSummary(s);
@@ -39,7 +40,8 @@ export default function Dashboard() {
       const todayOrders = todaySummary?.orders || [];
       const orderCount = todaySummary?.totalOrders || (Array.isArray(todayOrders) ? todayOrders.length : 0);
       const cashInHand = cashbook?.calculatedClosing ?? 0;
-      setStats({ orders: orderCount, revenue: ts, cost: tc, expenses: te, profit: ts - tc - te, cashInHand });
+      const fundsSaved = fundSummary?.totalSaved ?? 0;
+      setStats({ orders: orderCount, revenue: ts, cost: tc, expenses: te, profit: ts - tc - te, cashInHand, fundsSaved });
       const pm = aggregatePaymentMethods(todayOrders);
       setPayments(pm);
       const orders = ordData.orders || ordData;
@@ -75,7 +77,13 @@ export default function Dashboard() {
         </div>
         <button onClick={() => router.push("/cashbook")} className="w-full bg-blue-600 text-white rounded-xl p-3 text-left hover:bg-blue-700 transition flex items-center gap-3">
           <HiCash className="w-6 h-6 opacity-80" />
-          <div><p className="text-[10px] opacity-70">Cash in Hand</p><p className="text-lg font-bold font-mono">₹{stats.cashInHand.toLocaleString("en-IN")}</p></div>
+          <div>
+            <p className="text-[10px] opacity-70">Cash in Hand</p>
+            <p className="text-lg font-bold font-mono">₹{stats.cashInHand.toLocaleString("en-IN")}</p>
+            {stats.fundsSaved > 0 && (
+              <p className="text-[10px] opacity-70 mt-0.5">Funds: ₹{stats.fundsSaved.toLocaleString("en-IN")} saved</p>
+            )}
+          </div>
         </button>
 
         {Object.keys(payments).length > 0 && (

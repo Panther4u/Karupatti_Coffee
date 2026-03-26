@@ -2136,6 +2136,16 @@ function SettingsPopup({ onClose, onSave }) {
                       setSettings({ ...settings, fixedDailyExpenses: updated });
                     }}
                     className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-sm" />
+                  <label className="flex items-center gap-1 text-[10px] text-gray-500 whitespace-nowrap">
+                    <input type="checkbox" checked={fe.isFund || false}
+                      onChange={(e) => {
+                        const updated = [...(settings.fixedDailyExpenses || [])];
+                        updated[idx] = { ...updated[idx], isFund: e.target.checked };
+                        setSettings({ ...settings, fixedDailyExpenses: updated });
+                      }}
+                      className="w-3.5 h-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
+                    Fund
+                  </label>
                   <button onClick={() => {
                     const updated = (settings.fixedDailyExpenses || []).filter((_, i) => i !== idx);
                     setSettings({ ...settings, fixedDailyExpenses: updated });
@@ -2143,7 +2153,7 @@ function SettingsPopup({ onClose, onSave }) {
                 </div>
               ))}
               <button onClick={() => {
-                const updated = [...(settings.fixedDailyExpenses || []), { category: "", amount: 0, active: true }];
+                const updated = [...(settings.fixedDailyExpenses || []), { category: "", amount: 0, active: true, isFund: false }];
                 setSettings({ ...settings, fixedDailyExpenses: updated });
               }} className="text-xs text-coffee font-bold hover:underline flex items-center gap-1">
                 <HiPlus className="w-3 h-3" /> Add Fixed Expense
