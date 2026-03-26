@@ -36,6 +36,11 @@ export default function CashBookPage() {
   const [payoutForm, setPayoutForm] = useState({ category: "", amount: "", notes: "" });
   const [payingOut, setPayingOut] = useState(false);
 
+  // Funds tab state
+  const [fundTransactions, setFundTransactions] = useState([]);
+  const [selectedPot, setSelectedPot] = useState(null);
+  const [fundsLoading, setFundsLoading] = useState(false);
+
   // Auth check
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -72,11 +77,27 @@ export default function CashBookPage() {
     }
   }, []);
 
+  const fetchFunds = useCallback(async () => {
+    setFundsLoading(true);
+    try {
+      const [summaryRes, txRes] = await Promise.all([
+        fundsAPI.summary(),
+        fundsAPI.transactions({ limit: 100, ...(selectedPot ? { category: selectedPot } : {}) }),
+      ]);
+      setFundPots(summaryRes?.pots || []);
+      setFundTransactions(txRes?.transactions || []);
+    } catch (err) {
+      console.error("Failed to load funds:", err);
+    }
+    setFundsLoading(false);
+  }, [selectedPot]);
+
   useEffect(() => {
     if (!isAuth) return;
     if (activeTab === "today") fetchData();
-    else fetchHistory();
-  }, [isAuth, activeTab, selectedDate, fetchData, fetchHistory]);
+    else if (activeTab === "history") fetchHistory();
+    else if (activeTab === "funds") fetchFunds();
+  }, [isAuth, activeTab, selectedDate, fetchData, fetchHistory, fetchFunds]);
 
   // Close day
   const handleCloseDay = async () => {
@@ -170,11 +191,11 @@ export default function CashBookPage() {
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 bg-white">
-        {["today", "history"].map((tab) => (
+        {[["today", "Daily View"], ["history", "History"], ["funds", "Funds"]].map(([tab, label]) => (
           <button key={tab} onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-3 text-sm font-bold capitalize transition ${
+            className={`flex-1 py-3 text-sm font-bold transition ${
               activeTab === tab ? "text-coffee border-b-2 border-coffee" : "text-gray-400"
-            }`}>{tab === "today" ? "Daily View" : "History"}</button>
+            }`}>{label}</button>
         ))}
       </div>
 
@@ -370,7 +391,7 @@ export default function CashBookPage() {
             <div className="text-center py-12 text-gray-400">No data</div>
           )}
         </div>
-      ) : (
+      ) : activeTab === "history" ? (
         /* History Tab */
         <div className="p-4 max-w-2xl mx-auto space-y-3">
           {history.length === 0 ? (
@@ -391,6 +412,101 @@ export default function CashBookPage() {
               </div>
             </button>
           ))}
+        </div>
+      ) : (
+        /* Funds Tab */
+        <div className="p-4 max-w-2xl mx-auto space-y-4">
+          {/* Fund Pots Summary */}
+          {fundsLoading ? (
+            <div className="text-center py-12 text-gray-400">Loading...</div>
+          ) : (
+            <>
+              {/* Total Saved Banner */}
+              <div className="bg-purple-600 text-white rounded-xl p-5 text-center">
+                <p className="text-xs opacity-70 uppercase font-bold">Total Funds Saved</p>
+                <p className="text-3xl font-bold font-mono mt-1">
+                  {"\u20B9"}{fundPots.reduce((s, p) => s + (p.balance || 0), 0).toLocaleString("en-IN")}
+                </p>
+                <p className="text-xs opacity-60 mt-1">
+                  Allocated: {"\u20B9"}{fundPots.reduce((s, p) => s + (p.totalAllocated || 0), 0).toLocaleString("en-IN")} | Paid Out: {"\u20B9"}{fundPots.reduce((s, p) => s + (p.totalPaidOut || 0), 0).toLocaleString("en-IN")}
+                </p>
+              </div>
+
+              {/* Individual Pot Cards */}
+              <div className="space-y-3">
+                {fundPots.length === 0 ? (
+                  <p className="text-center py-8 text-gray-400 text-sm">No fund pots configured. Go to Settings to add fixed daily expenses with "Fund" enabled.</p>
+                ) : fundPots.map((pot) => (
+                  <div key={pot._id} className={`bg-white border-2 rounded-xl p-4 transition ${selectedPot === pot.category ? "border-purple-400 shadow-md" : "border-gray-200"}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="font-bold text-gray-800">{pot.category}</p>
+                        <p className="text-[10px] text-gray-400">
+                          Total saved: {"\u20B9"}{(pot.totalAllocated || 0).toLocaleString("en-IN")} | Paid out: {"\u20B9"}{(pot.totalPaidOut || 0).toLocaleString("en-IN")}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold text-purple-700">{"\u20B9"}{(pot.balance || 0).toLocaleString("en-IN")}</p>
+                        <button onClick={() => { setPayoutForm({ category: pot.category, amount: "", notes: "" }); setShowPayoutDialog(true); }}
+                          className="text-[10px] bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-bold hover:bg-purple-200 mt-1">
+                          Pay Out
+                        </button>
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div className="bg-purple-500 h-2 rounded-full transition-all" style={{ width: `${pot.totalAllocated > 0 ? Math.min(100, (pot.balance / pot.totalAllocated) * 100) : 0}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[9px] text-gray-400 mt-1">
+                      <span>Remaining: {pot.totalAllocated > 0 ? Math.round((pot.balance / pot.totalAllocated) * 100) : 0}%</span>
+                      <button onClick={() => setSelectedPot(selectedPot === pot.category ? null : pot.category)}
+                        className="text-purple-600 font-bold hover:underline">
+                        {selectedPot === pot.category ? "Hide History" : "View History"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Transaction History */}
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-bold text-gray-800">
+                    {selectedPot ? `${selectedPot} — Transactions` : "All Fund Transactions"}
+                  </p>
+                  {selectedPot && (
+                    <button onClick={() => setSelectedPot(null)} className="text-xs text-purple-600 font-bold hover:underline">Show All</button>
+                  )}
+                </div>
+                {fundTransactions.length === 0 ? (
+                  <p className="text-center py-6 text-gray-400 text-sm">No transactions yet</p>
+                ) : (
+                  <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                    {fundTransactions.map((tx, idx) => (
+                      <div key={tx._id || idx} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${tx.type === "allocation" ? "bg-green-500" : "bg-red-500"}`} />
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">
+                              {tx.type === "allocation" ? "Daily Allocation" : "Payout"}
+                              {!selectedPot && <span className="text-gray-400 font-normal"> — {tx.potCategory}</span>}
+                            </p>
+                            <p className="text-[10px] text-gray-400">{tx.date} {tx.notes && `· ${tx.notes}`}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-sm font-bold ${tx.type === "allocation" ? "text-green-600" : "text-red-600"}`}>
+                            {tx.type === "allocation" ? "+" : "-"}{"\u20B9"}{tx.amount?.toLocaleString("en-IN")}
+                          </p>
+                          <p className="text-[9px] text-gray-400">Bal: {"\u20B9"}{tx.balanceAfter?.toLocaleString("en-IN")}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
