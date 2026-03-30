@@ -1413,12 +1413,16 @@ function PaymentPopup({
               <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Cash Received</label>
               <input
                 ref={cashInputRef}
-                type="number"
-                inputMode="decimal"
+                type="text"
+                inputMode="numeric"
                 value={cashReceived}
-                onChange={(e) => setCashReceived(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); if (!isShort) onPay(); } }}
-                className="w-full p-3 border-2 border-gray-300 rounded-xl text-2xl font-bold text-center focus:ring-2 focus:ring-coffee focus:border-coffee outline-none"
+                onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ""); setCashReceived(v); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); if (!isShort) onPay(); }
+                  // Block up/down arrows
+                  if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+                }}
+                className="w-full p-3 border-2 border-gray-300 rounded-xl text-2xl font-bold text-center focus:ring-2 focus:ring-coffee focus:border-coffee outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
 
