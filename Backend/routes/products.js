@@ -21,7 +21,8 @@ router.get(
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const jwt = require("jsonwebtoken");
-        jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET);
+        const { JWT_SECRET } = require("../config/jwt");
+        jwt.verify(authHeader.split(" ")[1], JWT_SECRET);
         authenticated = true;
       }
     } catch {}

@@ -118,7 +118,7 @@ router.get(
   verifyToken,
   asyncHandler(async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 500);
-    const skip = parseInt(req.query.skip) || 0;
+    const skip = Math.max(0, parseInt(req.query.skip) || 0);
 
     const [shifts, total] = await Promise.all([
       Shift.find().sort({ createdAt: -1 }).limit(limit).skip(skip),

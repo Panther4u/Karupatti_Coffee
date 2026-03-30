@@ -34,25 +34,27 @@ router.post(
     }
 
     const previousStock = product.stock || 0;
-    product.stock = Math.max(0, previousStock + quantity);
+    const newStock = Math.max(0, previousStock + quantity);
 
-    await product.save();
+    // Atomic update to prevent race conditions
+    await Product.findByIdAndUpdate(productId, { $set: { stock: newStock } });
 
     const log = await StockLog.create({
       productId,
       type,
       quantity,
       previousStock,
-      newStock: product.stock,
+      newStock,
       reason: reason || "",
       userId: req.user.id,
     });
 
-    await logAudit({ action: "stock-adjust", entity: "Product", entityId: productId, user: req.user, details: { type, quantity, previousStock, newStock: product.stock } });
+    await logAudit({ action: "stock-adjust", entity: "Product", entityId: productId, user: req.user, details: { type, quantity, previousStock, newStock } });
 
+    const updatedProduct = await Product.findById(productId);
     res.json({
       success: true,
-      data: { product, log },
+      data: { product: updatedProduct, log },
     });
   })
 );

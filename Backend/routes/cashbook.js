@@ -33,7 +33,7 @@ async function aggregateCashBook(dateStr) {
   // Purchases (date is Date type, need IST range)
   const dayStart = new Date(`${dateStr}T00:00:00+05:30`);
   const dayEnd = new Date(`${dateStr}T23:59:59.999+05:30`);
-  const purchases = await Purchase.find({ createdAt: { $gte: dayStart, $lte: dayEnd } });
+  const purchases = await Purchase.find({ date: { $gte: dayStart, $lte: dayEnd } });
   const totalPurchases = purchases.reduce((s, p) => s + (p.grandTotal || 0), 0);
 
   // Fund pot totals
@@ -136,7 +136,7 @@ router.get("/today", verifyToken, asyncHandler(async (req, res) => {
 // GET /api/cashbook/history
 router.get("/history", verifyToken, asyncHandler(async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 30, 100);
-  const skip = parseInt(req.query.skip) || 0;
+  const skip = Math.max(0, parseInt(req.query.skip) || 0);
 
   const [entries, total] = await Promise.all([
     DailyCashBook.find().sort({ date: -1 }).limit(limit).skip(skip),

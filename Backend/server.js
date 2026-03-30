@@ -206,6 +206,13 @@ function gracefulShutdown(signal) {
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  gracefulShutdown("uncaughtException");
+});
 
 // Start
 connectDB().then(() => {

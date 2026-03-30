@@ -44,20 +44,20 @@ router.post(
 
     await purchase.save();
 
-    // Update product stock and create logs
+    // Update product stock atomically and create logs
     for (const item of items) {
       const product = await Product.findById(item.productId);
       if (product) {
         const previousStock = product.stock || 0;
-        product.stock = previousStock + item.quantity;
-        await product.save();
+        const newStock = previousStock + item.quantity;
+        await Product.findByIdAndUpdate(item.productId, { $set: { stock: newStock } });
 
         await StockLog.create({
           productId: item.productId,
           type: "purchase",
           quantity: item.quantity,
           previousStock,
-          newStock: product.stock,
+          newStock,
           reason: "Purchase: " + purchase.purchaseNumber,
           reference: purchase._id.toString(),
           userId: req.user.id,
@@ -79,7 +79,7 @@ router.get(
   verifyToken,
   asyncHandler(async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 500);
-    const skip = parseInt(req.query.skip) || 0;
+    const skip = Math.max(0, parseInt(req.query.skip) || 0);
 
     const [purchases, total] = await Promise.all([
       Purchase.find()
@@ -147,7 +147,7 @@ router.delete(
   verifyToken,
   roleCheck("admin", "manager"),
   asyncHandler(async (req, res) => {
-    const purchase = await Purchase.findByIdAndDelete(req.params.id);
+    const purchase = await Purchase.findById(req.params.id);
 
     if (!purchase) {
       return res
@@ -155,25 +155,28 @@ router.delete(
         .json({ success: false, error: "Purchase not found" });
     }
 
-    // Reverse stock adjustments
+    // Reverse stock adjustments FIRST (before deleting purchase)
     for (const item of purchase.items) {
       const product = await Product.findById(item.productId);
       if (product) {
         const previousStock = product.stock || 0;
-        product.stock = Math.max(0, previousStock - item.quantity);
-        await product.save();
+        const newStock = Math.max(0, previousStock - item.quantity);
+        await Product.findByIdAndUpdate(item.productId, { $set: { stock: newStock } });
 
         await StockLog.create({
           productId: item.productId,
           type: "adjustment",
           quantity: -item.quantity,
           previousStock,
-          newStock: product.stock,
+          newStock,
           reason: "Purchase deleted: " + purchase.purchaseNumber,
           userId: req.user.id,
         });
       }
     }
+
+    // Now safe to delete the purchase
+    await Purchase.findByIdAndDelete(req.params.id);
 
     await logAudit({ action: "delete", entity: "Purchase", entityId: req.params.id, user: req.user });
 

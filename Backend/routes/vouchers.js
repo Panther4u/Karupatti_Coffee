@@ -64,14 +64,20 @@ router.post(
     const { code } = req.body;
     if (!code) return res.status(400).json({ success: false, error: "Voucher code required" });
 
-    // Atomically increment usedCount only if under the limit
+    // Atomically increment usedCount only if under the limit and not expired
     const voucher = await Voucher.findOneAndUpdate(
       {
         code: code.toUpperCase(),
         isActive: true,
         $or: [
-          { usageLimit: null },
-          { $expr: { $lt: ["$usedCount", "$usageLimit"] } },
+          { expiresAt: null },
+          { expiresAt: { $gte: new Date() } },
+        ],
+        $and: [
+          { $or: [
+            { usageLimit: null },
+            { $expr: { $lt: ["$usedCount", "$usageLimit"] } },
+          ] },
         ],
       },
       { $inc: { usedCount: 1 } },

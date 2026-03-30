@@ -33,7 +33,14 @@ const settingsSchema = new mongoose.Schema(
 
 settingsSchema.statics.getSettings = async function () {
   let s = await this.findOne();
-  if (!s) s = await this.create({});
+  if (!s) {
+    try {
+      s = await this.create({});
+    } catch (e) {
+      // Another request may have created it concurrently
+      s = await this.findOne();
+    }
+  }
   return s;
 };
 

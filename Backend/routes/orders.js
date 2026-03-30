@@ -46,7 +46,7 @@ router.post(
       paymentMethod,
       tableNo: tableNo || "01",
       date: ist.toISOString().split("T")[0],
-      time: ist.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }),
+      time: now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }),
     });
 
     emitEvent("new-order", {

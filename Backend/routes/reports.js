@@ -223,7 +223,7 @@ router.get(
       { $match: { date, status: "completed" } },
       {
         $group: {
-          _id: { $hour: "$createdAt" },
+          _id: { $hour: { date: "$createdAt", timezone: "Asia/Kolkata" } },
           totalOrders: { $sum: 1 },
           totalRevenue: { $sum: "$grandTotal" },
           totalItems: { $sum: { $sum: "$order.amount" } },
