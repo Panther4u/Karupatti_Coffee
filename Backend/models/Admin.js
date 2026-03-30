@@ -19,6 +19,16 @@ const adminSchema = new mongoose.Schema(
       enum: ["admin", "manager", "cashier", "staff"],
       default: "cashier",
     },
+    passcode: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
+    displayName: {
+      type: String,
+      trim: true,
+    },
     lastLogin: {
       type: Date,
     },

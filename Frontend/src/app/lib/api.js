@@ -64,6 +64,11 @@ export const authAPI = {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),
+  loginPin: (passcode) =>
+    apiFetch("/api/auth/login-pin", {
+      method: "POST",
+      body: JSON.stringify({ passcode }),
+    }),
   me: () => apiFetch("/api/auth/me"),
   changePassword: (oldPassword, newPassword) =>
     apiFetch("/api/auth/change-password", {

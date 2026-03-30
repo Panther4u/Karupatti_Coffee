@@ -8,7 +8,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 const { JWT_SECRET, JWT_EXPIRES_IN } = require("../config/jwt");
 const { logAudit } = require("../config/audit");
 
-// POST /api/auth/login — authenticate and return JWT
+// POST /api/auth/login — authenticate with username+password and return JWT
 router.post(
   "/login",
   asyncHandler(async (req, res) => {
@@ -45,6 +45,47 @@ router.post(
       user: {
         id: admin._id,
         username: admin.username,
+        displayName: admin.displayName || admin.username,
+        role: admin.role,
+        lastLogin: admin.lastLogin,
+      },
+    });
+  })
+);
+
+// POST /api/auth/login-pin — authenticate with passcode (PIN) and return JWT
+router.post(
+  "/login-pin",
+  asyncHandler(async (req, res) => {
+    const { passcode } = req.body;
+
+    if (!passcode) {
+      return res.status(400).json({ success: false, error: "Passcode is required" });
+    }
+
+    const admin = await Admin.findOne({ passcode: passcode.trim() });
+    if (!admin) {
+      return res.status(401).json({ success: false, error: "Invalid passcode" });
+    }
+
+    admin.lastLogin = new Date();
+    await admin.save();
+
+    const token = jwt.sign(
+      { id: admin._id, username: admin.username, role: admin.role },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    await logAudit({ action: "login-pin", entity: "Admin", entityId: admin._id, user: { id: admin._id, username: admin.username } });
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: admin._id,
+        username: admin.username,
+        displayName: admin.displayName || admin.username,
         role: admin.role,
         lastLogin: admin.lastLogin,
       },

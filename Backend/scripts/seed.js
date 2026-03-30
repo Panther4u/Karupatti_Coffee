@@ -68,18 +68,38 @@ async function seed() {
       console.log(`Skipping vouchers — ${existingVouchers} already exist`);
     }
 
-    // Seed default admin
+    // Seed default users with passcodes
     const existingAdmins = await Admin.countDocuments();
     if (existingAdmins === 0) {
       const defaultPassword = process.env.ADMIN_PASSWORD || "Change_Me_123!";
-      await Admin.create({
-        username: "admin",
-        passwordHash: defaultPassword,
-        role: "admin",
-      });
-      console.log(`Seeded default admin (username: admin). CHANGE PASSWORD IMMEDIATELY after first login.`);
+      const users = [
+        { username: "admin", passwordHash: defaultPassword, role: "admin", passcode: "1234", displayName: "Admin" },
+        { username: "cashier", passwordHash: defaultPassword, role: "cashier", passcode: "5678", displayName: "Cashier" },
+        { username: "staff", passwordHash: defaultPassword, role: "staff", passcode: "9012", displayName: "Staff" },
+      ];
+      for (const u of users) {
+        await Admin.create(u);
+        console.log(`Seeded ${u.role}: ${u.username} (PIN: ${u.passcode})`);
+      }
     } else {
-      console.log(`Skipping admin — ${existingAdmins} already exist`);
+      // Add passcodes to existing users if missing
+      const usersWithoutPin = await Admin.find({ $or: [{ passcode: null }, { passcode: { $exists: false } }] });
+      if (usersWithoutPin.length > 0) {
+        const defaultPins = { admin: "1234", manager: "3456", cashier: "5678", staff: "9012" };
+        let pinCounter = 1111;
+        for (const u of usersWithoutPin) {
+          const pin = defaultPins[u.role] || String(pinCounter++);
+          // Check if pin already taken
+          const taken = await Admin.findOne({ passcode: pin });
+          const finalPin = taken ? String(Date.now()).slice(-4) : pin;
+          u.passcode = finalPin;
+          if (!u.displayName) u.displayName = u.username.charAt(0).toUpperCase() + u.username.slice(1);
+          await Admin.collection.updateOne({ _id: u._id }, { $set: { passcode: finalPin, displayName: u.displayName } });
+          console.log(`Added PIN ${finalPin} to ${u.username} (${u.role})`);
+        }
+      } else {
+        console.log(`Skipping admin — ${existingAdmins} already exist with PINs`);
+      }
     }
 
     console.log("Seed complete!");
