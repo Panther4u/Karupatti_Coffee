@@ -65,6 +65,13 @@ export default function OrderPage() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [currentCategory, setCurrentCategory] = useState(null);
 
+  // Multi-bill tabs — held bills array + active bill index
+  const [heldBills, setHeldBills] = useState(() => {
+    if (typeof window === "undefined") return [];
+    try { const saved = localStorage.getItem("pos_heldBills"); return saved ? JSON.parse(saved) : []; } catch { return []; }
+  });
+  const [activeBillTab, setActiveBillTab] = useState(0); // 0 = current bill, 1+ = held bill index+1
+
   // Bill State — restore from localStorage on mount
   const [billItems, setBillItems] = useState(() => {
     if (typeof window === "undefined") return [];
@@ -87,6 +94,53 @@ export default function OrderPage() {
   });
   const [discountCode, setDiscountCode] = useState("");
 
+  // Hold current bill and start new one
+  const holdCurrentBill = () => {
+    if (billItems.length === 0) return;
+    const held = { id: Date.now(), items: [...billItems], tableNo, orderType, customer, discountAmount, discountCode, createdAt: new Date().toISOString() };
+    setHeldBills((prev) => [...prev, held]);
+    // Clear current bill for new order
+    setBillItems([]);
+    setTableNo("");
+    setOrderType("dine-in");
+    setCustomer(null);
+    setDiscountAmount(0);
+    setDiscountCode("");
+    setActiveBillTab(0);
+    refocusSearch();
+  };
+
+  // Resume a held bill (swap with current)
+  const resumeHeldBill = (heldIndex) => {
+    const held = heldBills[heldIndex];
+    if (!held) return;
+    // If current bill has items, hold it first
+    if (billItems.length > 0) {
+      const currentHeld = { id: Date.now(), items: [...billItems], tableNo, orderType, customer, discountAmount, discountCode, createdAt: new Date().toISOString() };
+      setHeldBills((prev) => {
+        const updated = [...prev];
+        updated.splice(heldIndex, 1); // Remove the one being resumed
+        return [...updated, currentHeld]; // Add current as held
+      });
+    } else {
+      setHeldBills((prev) => prev.filter((_, i) => i !== heldIndex));
+    }
+    // Load held bill into current
+    setBillItems(held.items || []);
+    setTableNo(held.tableNo || "");
+    setOrderType(held.orderType || "dine-in");
+    setCustomer(held.customer || null);
+    setDiscountAmount(held.discountAmount || 0);
+    setDiscountCode(held.discountCode || "");
+    setActiveBillTab(0);
+    refocusSearch();
+  };
+
+  // Delete a held bill
+  const deleteHeldBill = (heldIndex) => {
+    setHeldBills((prev) => prev.filter((_, i) => i !== heldIndex));
+  };
+
   // Persist bill to localStorage on every change
   useEffect(() => {
     try {
@@ -94,8 +148,9 @@ export default function OrderPage() {
       localStorage.setItem("pos_table", tableNo);
       localStorage.setItem("pos_orderType", orderType);
       localStorage.setItem("pos_discount", String(discountAmount));
+      localStorage.setItem("pos_heldBills", JSON.stringify(heldBills));
     } catch {}
-  }, [billItems, tableNo, orderType, discountAmount]);
+  }, [billItems, tableNo, orderType, discountAmount, heldBills]);
 
   // Popups
   const [activePopup, setActivePopup] = useState(null);
@@ -440,6 +495,7 @@ export default function OrderPage() {
     setRadioChecked("cash");
     setCashReceived("");
     setActivePopup(null);
+    setActiveBillTab(0);
     // Clear persisted bill data
     try { localStorage.removeItem("pos_bill"); localStorage.removeItem("pos_table"); localStorage.removeItem("pos_orderType"); localStorage.removeItem("pos_discount"); } catch {}
     refocusSearch();
@@ -905,6 +961,10 @@ export default function OrderPage() {
               onPay={() => billItems.length > 0 && setActivePopup("payment")}
               onDiscount={() => setActivePopup("discount")}
               onTable={() => setActivePopup("table")}
+              heldBills={heldBills}
+              onHoldBill={holdCurrentBill}
+              onResumeBill={resumeHeldBill}
+              onDeleteHeldBill={deleteHeldBill}
             />
           </div>
 
@@ -913,17 +973,32 @@ export default function OrderPage() {
             className="lg:hidden fixed bottom-0 left-0 right-0 bg-coffee-dark text-cream px-3 py-3 flex justify-between items-center z-20 border-t border-coffee-darker"
             onClick={() => setActivePopup("mobileBill")}
           >
-            <span className="text-sm font-semibold">{billItems.length} items</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">{billItems.length} items</span>
+              {heldBills.length > 0 && (
+                <span className="text-[9px] bg-amber-500 text-white px-1.5 py-0.5 rounded-full font-bold">{heldBills.length} held</span>
+              )}
+            </div>
             <span className="text-base font-bold">₹{grandTotal.toFixed(0)}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (billItems.length > 0) setActivePopup("payment");
-              }}
-              className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-600 transition"
-            >
-              PAY
-            </button>
+            <div className="flex items-center gap-1.5">
+              {billItems.length > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); holdCurrentBill(); }}
+                  className="bg-amber-500 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-600 transition"
+                >
+                  + New
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (billItems.length > 0) setActivePopup("payment");
+                }}
+                className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-600 transition"
+              >
+                PAY
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1055,6 +1130,10 @@ export default function OrderPage() {
           onPay={() => {
             setActivePopup("payment");
           }}
+          heldBills={heldBills}
+          onHoldBill={() => { holdCurrentBill(); }}
+          onResumeBill={(i) => { resumeHeldBill(i); }}
+          onDeleteHeldBill={(i) => { deleteHeldBill(i); }}
         />
       )}
 
@@ -1125,9 +1204,47 @@ function BillArea({
   onPay,
   onDiscount,
   onTable,
+  heldBills = [],
+  onHoldBill,
+  onResumeBill,
+  onDeleteHeldBill,
 }) {
   return (
     <div className="flex flex-col h-full">
+      {/* Bill Tabs — current + held bills */}
+      <div className="flex items-center gap-1 px-2 pt-2 pb-0 bg-gray-100 border-b border-gray-200 overflow-x-auto no-scrollbar">
+        {/* Current bill tab */}
+        <button
+          className="flex items-center gap-1 px-3 py-1.5 rounded-t-lg text-xs font-bold whitespace-nowrap transition bg-white text-coffee border border-gray-200 border-b-white -mb-px"
+        >
+          <HiShoppingCart className="w-3 h-3" />
+          Bill {billItems.length > 0 ? `(${billItems.length})` : ""}
+        </button>
+        {/* Held bill tabs */}
+        {heldBills.map((held, i) => (
+          <button
+            key={held.id}
+            onClick={() => onResumeBill && onResumeBill(i)}
+            className="group flex items-center gap-1 px-2.5 py-1.5 rounded-t-lg text-xs font-semibold whitespace-nowrap transition bg-gray-200/80 text-gray-600 hover:bg-amber-50 hover:text-amber-700 border border-gray-300 border-b-gray-200 -mb-px"
+          >
+            <HiClock className="w-3 h-3 text-amber-500" />
+            Hold {i + 1} ({(held.items || []).length})
+            <span onClick={(e) => { e.stopPropagation(); onDeleteHeldBill && onDeleteHeldBill(i); }}
+              className="ml-0.5 text-gray-400 hover:text-red-500 transition"><HiX className="w-3 h-3" /></span>
+          </button>
+        ))}
+        {/* New bill / Hold button */}
+        {billItems.length > 0 && (
+          <button
+            onClick={() => onHoldBill && onHoldBill()}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-t-lg text-xs font-bold whitespace-nowrap transition bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 border-b-amber-50 -mb-px"
+            title="Hold current bill & start new"
+          >
+            <HiPlus className="w-3 h-3" /> New
+          </button>
+        )}
+      </div>
+
       {/* Header */}
       <div className="p-3 border-b border-gray-200 bg-gray-50">
         <div className="flex items-center justify-between">
@@ -1849,16 +1966,50 @@ function MobileBillPopup({
   updateBillItem,
   onClose,
   onPay,
+  heldBills = [],
+  onHoldBill,
+  onResumeBill,
+  onDeleteHeldBill,
 }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-0" data-popup="mobileBill" onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); } }} tabIndex={-1} ref={(el) => el?.focus()}>
       <div className="bg-white w-full rounded-t-2xl p-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-3">
           <h2 className="text-xl font-bold">Current Bill</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
-            <HiX className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            {billItems.length > 0 && (
+              <button onClick={() => { onHoldBill && onHoldBill(); }}
+                className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold border border-amber-200 active:bg-amber-100">
+                <HiPlus className="w-3 h-3 inline mr-1" />Hold & New
+              </button>
+            )}
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+              <HiX className="w-6 h-6" />
+            </button>
+          </div>
         </div>
+
+        {/* Held Bills */}
+        {heldBills.length > 0 && (
+          <div className="mb-3 space-y-1.5">
+            <p className="text-[10px] text-gray-500 uppercase font-bold">Held Bills ({heldBills.length})</p>
+            {heldBills.map((held, i) => (
+              <div key={held.id} className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg p-2">
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-bold text-amber-800">Hold {i + 1}</span>
+                  <span className="text-[10px] text-amber-600 ml-2">{(held.items || []).length} items · ₹{(held.items || []).reduce((s, it) => s + (it.itemTotal || 0), 0).toFixed(0)}</span>
+                  {held.tableNo && <span className="text-[10px] text-amber-500 ml-1">· T:{held.tableNo}</span>}
+                </div>
+                <div className="flex gap-1.5">
+                  <button onClick={() => { onResumeBill && onResumeBill(i); }}
+                    className="px-2 py-1 bg-amber-500 text-white rounded text-[10px] font-bold active:bg-amber-600">Resume</button>
+                  <button onClick={() => { onDeleteHeldBill && onDeleteHeldBill(i); }}
+                    className="px-1.5 py-1 bg-red-50 text-red-500 rounded text-[10px] font-bold active:bg-red-100"><HiX className="w-3 h-3" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Items */}
         <div className="space-y-2 mb-4">
