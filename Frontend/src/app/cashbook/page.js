@@ -2,10 +2,21 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { HiArrowLeft, HiCash, HiTrendingUp, HiTrendingDown, HiLockClosed, HiLockOpen, HiRefresh, HiPlus, HiPencil, HiTrash, HiCheckCircle } from "react-icons/hi";
+import { HiArrowLeft, HiCash, HiTrendingUp, HiTrendingDown, HiLockClosed, HiLockOpen, HiRefresh, HiPlus, HiPencil, HiTrash, HiCheckCircle, HiCreditCard } from "react-icons/hi";
 import { cashbookAPI, expensesAPI, authAPI, fundsAPI } from "@/app/lib/api";
 import { getISTToday } from "@/app/lib/dateUtils";
 import { offlineAuthCheck } from "@/app/lib/authUtils";
+
+const DENOMINATIONS = [
+  { key: "n2000", label: "₹2000", value: 2000 },
+  { key: "n500", label: "₹500", value: 500 },
+  { key: "n200", label: "₹200", value: 200 },
+  { key: "n100", label: "₹100", value: 100 },
+  { key: "n50", label: "₹50", value: 50 },
+  { key: "n20", label: "₹20", value: 20 },
+  { key: "n10", label: "₹10", value: 10 },
+  { key: "coins", label: "Coins", value: 1 },
+];
 
 export default function CashBookPage() {
   const router = useRouter();
@@ -21,6 +32,8 @@ export default function CashBookPage() {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [closingCashInput, setClosingCashInput] = useState("");
   const [closing, setClosing] = useState(false);
+  const [denomination, setDenomination] = useState({ n2000: "", n500: "", n200: "", n100: "", n50: "", n20: "", n10: "", coins: "" });
+  const [useDenomination, setUseDenomination] = useState(false);
 
   // Add expense form
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -30,6 +43,12 @@ export default function CashBookPage() {
   // Edit opening cash
   const [editingOpening, setEditingOpening] = useState(false);
   const [openingInput, setOpeningInput] = useState("");
+
+  // Edit UPI/Card amounts manually
+  const [editingUpi, setEditingUpi] = useState(false);
+  const [upiInput, setUpiInput] = useState("");
+  const [editingCard, setEditingCard] = useState(false);
+  const [cardInput, setCardInput] = useState("");
 
   // Fund pots
   const [fundPots, setFundPots] = useState([]);
@@ -98,15 +117,34 @@ export default function CashBookPage() {
     else if (activeTab === "funds") fetchFunds();
   }, [isAuth, activeTab, selectedDate, fetchData, fetchHistory, fetchFunds]);
 
+  // Denomination total
+  const denomTotal = DENOMINATIONS.reduce((sum, d) => {
+    const count = parseInt(denomination[d.key]) || 0;
+    return sum + count * d.value;
+  }, 0);
+
+  // Sync denomination → closing cash input
+  useEffect(() => {
+    if (useDenomination && denomTotal > 0) {
+      setClosingCashInput(String(denomTotal));
+    }
+  }, [denomTotal, useDenomination]);
+
   // Close day
   const handleCloseDay = async () => {
     const amount = parseFloat(closingCashInput);
     if (isNaN(amount) || amount < 0) return;
     setClosing(true);
     try {
-      await cashbookAPI.close(selectedDate, { closingCash: amount });
+      const payload = { closingCash: amount };
+      if (useDenomination) {
+        payload.denomination = {};
+        DENOMINATIONS.forEach(d => { payload.denomination[d.key] = parseInt(denomination[d.key]) || 0; });
+      }
+      await cashbookAPI.close(selectedDate, payload);
       setShowCloseDialog(false);
       setClosingCashInput("");
+      setDenomination({ n2000: "", n500: "", n200: "", n100: "", n50: "", n20: "", n10: "", coins: "" });
       fetchData();
     } catch (err) {
       alert(err.message || "Failed to close day");
@@ -135,6 +173,32 @@ export default function CashBookPage() {
       fetchData();
     } catch (err) {
       alert(err.message || "Failed to update");
+    }
+  };
+
+  // Update manual UPI amount
+  const handleUpdateUpi = async () => {
+    const amount = parseFloat(upiInput);
+    if (isNaN(amount) || amount < 0) return;
+    try {
+      await cashbookAPI.update(selectedDate, { manualUpiAmount: amount });
+      setEditingUpi(false);
+      fetchData();
+    } catch (err) {
+      alert(err.message || "Failed to update UPI amount");
+    }
+  };
+
+  // Update manual Card amount
+  const handleUpdateCard = async () => {
+    const amount = parseFloat(cardInput);
+    if (isNaN(amount) || amount < 0) return;
+    try {
+      await cashbookAPI.update(selectedDate, { manualCardAmount: amount });
+      setEditingCard(false);
+      fetchData();
+    } catch (err) {
+      alert(err.message || "Failed to update Card amount");
     }
   };
 
@@ -173,6 +237,15 @@ export default function CashBookPage() {
 
   const isToday = selectedDate === getISTToday();
   const isOpen = data?.status === "open";
+
+  const upiSalesAmt = data?.upiSales?.total || 0;
+  const cardSalesAmt = data?.cardSales?.total || 0;
+  const otherSalesAmt = data?.otherSales?.total || 0;
+  const manualUpi = data?.manualUpiAmount;
+  const manualCard = data?.manualCardAmount;
+  const displayUpi = manualUpi != null ? manualUpi : upiSalesAmt;
+  const displayCard = manualCard != null ? manualCard : cardSalesAmt;
+  const totalAllSales = (data?.cashSales?.total || 0) + upiSalesAmt + cardSalesAmt + otherSalesAmt;
 
   return (
     <div className="min-h-[100dvh] bg-gray-50">
@@ -240,19 +313,99 @@ export default function CashBookPage() {
                 </div>
               </div>
 
-              {/* Cash In */}
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                <p className="text-xs font-bold text-green-600 uppercase mb-3 flex items-center gap-1">
-                  <HiTrendingUp className="w-4 h-4" /> Cash In
+              {/* Payment Method Breakdown - Cash / UPI / Card */}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <p className="text-xs font-bold text-blue-600 uppercase mb-3 flex items-center gap-1">
+                  <HiCreditCard className="w-4 h-4" /> Sales by Payment Method
                 </p>
                 <div className="space-y-2">
-                  <div className="flex justify-between items-center bg-white rounded-lg p-3 border border-green-100">
+                  {/* Cash Sales */}
+                  <div className="flex justify-between items-center bg-white rounded-lg p-3 border border-blue-100">
                     <div>
                       <p className="text-sm font-semibold text-gray-800">Cash Sales</p>
                       <p className="text-xs text-gray-400">{data.cashSales?.count || 0} orders</p>
                     </div>
                     <p className="text-lg font-bold text-green-600">{"\u20B9"}{(data.cashSales?.total || 0).toLocaleString("en-IN")}</p>
                   </div>
+
+                  {/* UPI Sales - editable */}
+                  <div className="flex justify-between items-center bg-white rounded-lg p-3 border border-blue-100">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">UPI Sales</p>
+                      <p className="text-xs text-gray-400">{data.upiSales?.count || 0} orders{manualUpi != null && " (manually edited)"}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {editingUpi ? (
+                        <>
+                          <input type="number" value={upiInput} onChange={(e) => setUpiInput(e.target.value)}
+                            className="w-24 px-2 py-1 border rounded text-sm font-bold text-right" autoFocus />
+                          <button onClick={handleUpdateUpi} className="text-green-600 font-bold text-xs">Save</button>
+                          <button onClick={() => setEditingUpi(false)} className="text-gray-400 text-xs">✕</button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-lg font-bold text-blue-600">{"\u20B9"}{displayUpi.toLocaleString("en-IN")}</p>
+                          {isOpen && (
+                            <button onClick={() => { setUpiInput(String(displayUpi)); setEditingUpi(true); }}
+                              className="p-1 hover:bg-blue-50 rounded">
+                              <HiPencil className="w-3.5 h-3.5 text-blue-400" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Sales - editable */}
+                  <div className="flex justify-between items-center bg-white rounded-lg p-3 border border-blue-100">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Card Sales</p>
+                      <p className="text-xs text-gray-400">{data.cardSales?.count || 0} orders{manualCard != null && " (manually edited)"}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {editingCard ? (
+                        <>
+                          <input type="number" value={cardInput} onChange={(e) => setCardInput(e.target.value)}
+                            className="w-24 px-2 py-1 border rounded text-sm font-bold text-right" autoFocus />
+                          <button onClick={handleUpdateCard} className="text-green-600 font-bold text-xs">Save</button>
+                          <button onClick={() => setEditingCard(false)} className="text-gray-400 text-xs">✕</button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-lg font-bold text-purple-600">{"\u20B9"}{displayCard.toLocaleString("en-IN")}</p>
+                          {isOpen && (
+                            <button onClick={() => { setCardInput(String(displayCard)); setEditingCard(true); }}
+                              className="p-1 hover:bg-purple-50 rounded">
+                              <HiPencil className="w-3.5 h-3.5 text-purple-400" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Other Sales */}
+                  {otherSalesAmt > 0 && (
+                    <div className="flex justify-between items-center bg-white rounded-lg p-3 border border-blue-100">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">Other Sales</p>
+                        <p className="text-xs text-gray-400">{data.otherSales?.count || 0} orders</p>
+                      </div>
+                      <p className="text-lg font-bold text-gray-600">{"\u20B9"}{otherSalesAmt.toLocaleString("en-IN")}</p>
+                    </div>
+                  )}
+                </div>
+                <p className="text-right mt-2 text-sm font-bold text-blue-700">
+                  Total Sales: {"\u20B9"}{totalAllSales.toLocaleString("en-IN")}
+                </p>
+              </div>
+
+              {/* Cash In */}
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                <p className="text-xs font-bold text-green-600 uppercase mb-3 flex items-center gap-1">
+                  <HiTrendingUp className="w-4 h-4" /> Cash In (Non-sales)
+                </p>
+                <div className="space-y-2">
                   {(data.cashIn?.entries || []).map((e) => (
                     <div key={e._id} className="flex justify-between items-center bg-white rounded-lg p-3 border border-green-100">
                       <div>
@@ -265,9 +418,12 @@ export default function CashBookPage() {
                       </div>
                     </div>
                   ))}
+                  {(data.cashIn?.entries || []).length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-2">No cash-in entries</p>
+                  )}
                 </div>
                 <p className="text-right mt-2 text-sm font-bold text-green-700">
-                  Total In: {"\u20B9"}{((data.cashSales?.total || 0) + (data.cashIn?.total || 0)).toLocaleString("en-IN")}
+                  Total In: {"\u20B9"}{(data.cashIn?.total || 0).toLocaleString("en-IN")}
                 </p>
               </div>
 
@@ -348,14 +504,22 @@ export default function CashBookPage() {
               <div className="bg-coffee-dark text-cream rounded-xl p-5">
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="opacity-70">Opening Cash</span><span className="font-bold">{"\u20B9"}{(data.openingCash || 0).toLocaleString("en-IN")}</span></div>
-                  <div className="flex justify-between text-green-300"><span>+ Cash In</span><span className="font-bold">{"\u20B9"}{((data.cashSales?.total || 0) + (data.cashIn?.total || 0)).toLocaleString("en-IN")}</span></div>
+                  <div className="flex justify-between text-green-300"><span>+ Cash Sales</span><span className="font-bold">{"\u20B9"}{(data.cashSales?.total || 0).toLocaleString("en-IN")}</span></div>
+                  <div className="flex justify-between text-blue-300"><span>+ UPI Sales</span><span className="font-bold">{"\u20B9"}{displayUpi.toLocaleString("en-IN")}</span></div>
+                  <div className="flex justify-between text-purple-300"><span>+ Card Sales</span><span className="font-bold">{"\u20B9"}{displayCard.toLocaleString("en-IN")}</span></div>
+                  {otherSalesAmt > 0 && <div className="flex justify-between text-gray-300"><span>+ Other Sales</span><span className="font-bold">{"\u20B9"}{otherSalesAmt.toLocaleString("en-IN")}</span></div>}
+                  {(data.cashIn?.total || 0) > 0 && <div className="flex justify-between text-green-300"><span>+ Cash In</span><span className="font-bold">{"\u20B9"}{(data.cashIn?.total || 0).toLocaleString("en-IN")}</span></div>}
                   <div className="flex justify-between text-red-300"><span>- Cash Out</span><span className="font-bold">{"\u20B9"}{((data.cashOut?.total || 0) + (data.purchases?.total || 0)).toLocaleString("en-IN")}</span></div>
                   {fundPots.length > 0 && (
                     <div className="flex justify-between text-purple-300"><span>Funds Saved</span><span className="font-bold">{"\u20B9"}{fundPots.reduce((s, p) => s + (p.balance || 0), 0).toLocaleString("en-IN")}</span></div>
                   )}
                   <div className="border-t border-cream/20 pt-2 flex justify-between text-xl">
-                    <span className="font-bold">Cash in Hand</span>
+                    <span className="font-bold">Cash in Drawer</span>
                     <span className="font-bold">{"\u20B9"}{(data.calculatedClosing || 0).toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="flex justify-between text-lg text-blue-200">
+                    <span className="font-bold">Total Account (UPI+Card)</span>
+                    <span className="font-bold">{"\u20B9"}{(displayUpi + displayCard).toLocaleString("en-IN")}</span>
                   </div>
                 </div>
                 {data.status === "closed" && data.closingCash != null && (
@@ -367,6 +531,24 @@ export default function CashBookPage() {
                         {"\u20B9"}{(data.closingCash - data.calculatedClosing).toLocaleString("en-IN")}
                       </span>
                     </div>
+                    {/* Show denomination if saved */}
+                    {data.denomination && Object.values(data.denomination).some(v => v > 0) && (
+                      <div className="mt-2 pt-2 border-t border-cream/10">
+                        <p className="text-[10px] opacity-60 uppercase mb-1">Denomination</p>
+                        <div className="grid grid-cols-4 gap-1 text-[10px]">
+                          {DENOMINATIONS.map(d => {
+                            const count = data.denomination[d.key] || 0;
+                            if (count === 0) return null;
+                            return (
+                              <div key={d.key} className="bg-white/10 rounded px-1.5 py-1 text-center">
+                                <span className="opacity-60">{d.label}</span> × <span className="font-bold">{count}</span>
+                                <p className="font-bold">{"\u20B9"}{(count * d.value).toLocaleString("en-IN")}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -415,7 +597,6 @@ export default function CashBookPage() {
       ) : (
         /* Funds Tab */
         <div className="p-4 max-w-2xl mx-auto space-y-4">
-          {/* Fund Pots Summary */}
           {fundsLoading ? (
             <div className="text-center py-12 text-gray-400">Loading...</div>
           ) : (
@@ -509,22 +690,63 @@ export default function CashBookPage() {
         </div>
       )}
 
-      {/* Close Day Dialog */}
+      {/* Close Day Dialog with Denomination Counter */}
       {showCloseDialog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowCloseDialog(false)}>
-          <div className="bg-white rounded-2xl p-5 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold mb-1">Close Day</h3>
-            <p className="text-xs text-gray-400 mb-4">Enter the actual cash counted in the drawer</p>
+            <p className="text-xs text-gray-400 mb-4">Count cash in the drawer and close the day</p>
+
             <div className="mb-3">
               <label className="text-xs font-bold text-gray-500 uppercase">Expected Cash</label>
               <p className="text-xl font-bold text-coffee">{"\u20B9"}{Math.round(data?.calculatedClosing || 0).toLocaleString("en-IN")}</p>
             </div>
+
+            {/* Toggle denomination counter */}
+            <button onClick={() => setUseDenomination(!useDenomination)}
+              className={`w-full mb-3 py-2 rounded-lg text-sm font-bold transition ${useDenomination ? "bg-coffee text-cream" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              {useDenomination ? "✓ Using Denomination Counter" : "Use Denomination Counter"}
+            </button>
+
+            {/* Denomination Counter */}
+            {useDenomination && (
+              <div className="mb-4 bg-gray-50 rounded-xl p-3 space-y-2">
+                <p className="text-[10px] font-bold text-gray-500 uppercase">Count Notes & Coins</p>
+                {DENOMINATIONS.map((d) => (
+                  <div key={d.key} className="flex items-center gap-2">
+                    <span className="w-14 text-xs font-bold text-gray-700">{d.label}</span>
+                    <span className="text-gray-400 text-xs">×</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={denomination[d.key]}
+                      onChange={(e) => setDenomination({ ...denomination, [d.key]: e.target.value })}
+                      placeholder="0"
+                      className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-coffee outline-none"
+                    />
+                    <span className="text-xs text-gray-500 w-16 text-right font-mono">
+                      = {"\u20B9"}{((parseInt(denomination[d.key]) || 0) * d.value).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center pt-2 border-t border-gray-200 mt-2">
+                  <span className="text-sm font-bold text-gray-800">Denomination Total</span>
+                  <span className="text-lg font-bold text-coffee">{"\u20B9"}{denomTotal.toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Manual input (or auto from denomination) */}
             <div className="mb-4">
-              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Actual Cash Counted</label>
-              <input type="number" value={closingCashInput} onChange={(e) => setClosingCashInput(e.target.value)}
-                className="w-full p-3 border-2 border-gray-300 rounded-xl text-xl font-bold text-center focus:ring-2 focus:ring-coffee focus:border-coffee outline-none"
-                autoFocus />
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                {useDenomination ? "Total (auto-calculated)" : "Actual Cash Counted"}
+              </label>
+              <input type="number" value={closingCashInput} onChange={(e) => { if (!useDenomination) setClosingCashInput(e.target.value); }}
+                readOnly={useDenomination}
+                className={`w-full p-3 border-2 rounded-xl text-xl font-bold text-center focus:ring-2 focus:ring-coffee focus:border-coffee outline-none ${useDenomination ? "bg-gray-50 border-gray-200" : "border-gray-300"}`}
+                autoFocus={!useDenomination} />
             </div>
+
             {closingCashInput && (
               <div className={`mb-4 p-3 rounded-lg text-sm font-bold text-center ${
                 parseFloat(closingCashInput) - (data?.calculatedClosing || 0) >= 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
@@ -532,6 +754,7 @@ export default function CashBookPage() {
                 Difference: {"\u20B9"}{(parseFloat(closingCashInput || 0) - (data?.calculatedClosing || 0)).toLocaleString("en-IN")}
               </div>
             )}
+
             <div className="flex gap-2">
               <button onClick={() => setShowCloseDialog(false)} className="flex-1 py-3 border border-gray-300 rounded-xl font-bold text-gray-600">Cancel</button>
               <button onClick={handleCloseDay} disabled={closing}

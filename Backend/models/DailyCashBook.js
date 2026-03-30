@@ -14,6 +14,18 @@ const dailyCashBookSchema = new mongoose.Schema({
   totalCashIn: { type: Number, default: 0 },
   totalCashOut: { type: Number, default: 0 },
   totalPurchases: { type: Number, default: 0 },
+  denomination: {
+    n2000: { type: Number, default: 0 },
+    n500: { type: Number, default: 0 },
+    n200: { type: Number, default: 0 },
+    n100: { type: Number, default: 0 },
+    n50: { type: Number, default: 0 },
+    n20: { type: Number, default: 0 },
+    n10: { type: Number, default: 0 },
+    coins: { type: Number, default: 0 },
+  },
+  manualUpiAmount: { type: Number, default: null },
+  manualCardAmount: { type: Number, default: null },
 }, { timestamps: true });
 
 dailyCashBookSchema.index({ date: -1 });

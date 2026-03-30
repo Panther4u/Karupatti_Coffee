@@ -23,6 +23,18 @@ async function aggregateCashBook(dateStr) {
   const cashOrders = await Order.find({ date: dateStr, paymentMethod: { $regex: /^cash$/i }, status: "completed" });
   const cashSalesTotal = cashOrders.reduce((s, o) => s + o.grandTotal, 0);
 
+  // UPI sales
+  const upiOrders = await Order.find({ date: dateStr, paymentMethod: { $regex: /^upi$/i }, status: "completed" });
+  const upiSalesTotal = upiOrders.reduce((s, o) => s + o.grandTotal, 0);
+
+  // Card sales
+  const cardOrders = await Order.find({ date: dateStr, paymentMethod: { $regex: /^card$/i }, status: "completed" });
+  const cardSalesTotal = cardOrders.reduce((s, o) => s + o.grandTotal, 0);
+
+  // Other sales
+  const otherOrders = await Order.find({ date: dateStr, paymentMethod: { $nin: [/^cash$/i, /^upi$/i, /^card$/i] }, status: "completed" });
+  const otherSalesTotal = otherOrders.reduce((s, o) => s + o.grandTotal, 0);
+
   // All expenses for the day
   const expenses = await Expense.find({ date: dateStr });
   const cashOutEntries = expenses.filter(e => e.type === "out");
@@ -42,6 +54,9 @@ async function aggregateCashBook(dateStr) {
 
   return {
     cashSales: { total: cashSalesTotal, count: cashOrders.length },
+    upiSales: { total: upiSalesTotal, count: upiOrders.length },
+    cardSales: { total: cardSalesTotal, count: cardOrders.length },
+    otherSales: { total: otherSalesTotal, count: otherOrders.length },
     cashIn: { total: totalCashIn, entries: cashInEntries },
     cashOut: { total: totalCashOut, entries: cashOutEntries },
     purchases: { total: totalPurchases, count: purchases.length, entries: purchases },
@@ -190,6 +205,9 @@ router.put("/:date", verifyToken, roleCheck("admin", "manager"), asyncHandler(as
 
   if (openingCash !== undefined) cashbook.openingCash = openingCash;
   if (notes !== undefined) cashbook.notes = notes;
+  if (req.body.manualUpiAmount !== undefined) cashbook.manualUpiAmount = req.body.manualUpiAmount;
+  if (req.body.manualCardAmount !== undefined) cashbook.manualCardAmount = req.body.manualCardAmount;
+  if (req.body.denomination !== undefined) cashbook.denomination = req.body.denomination;
   await cashbook.save();
 
   await logAudit({ action: "update", entity: "DailyCashBook", entityId: cashbook._id, user: req.user });
@@ -204,14 +222,17 @@ router.post("/:date/close", verifyToken, roleCheck("admin", "manager"), asyncHan
     return res.status(400).json({ success: false, error: "Closing cash amount required" });
   }
 
+  const updateFields = {
+    closingCash,
+    status: "closed",
+    closedBy: req.user.id,
+    closedAt: new Date(),
+  };
+  if (req.body.denomination) updateFields.denomination = req.body.denomination;
+
   const cashbook = await DailyCashBook.findOneAndUpdate(
     { date: req.params.date, status: "open" },
-    {
-      closingCash,
-      status: "closed",
-      closedBy: req.user.id,
-      closedAt: new Date(),
-    },
+    updateFields,
     { new: true }
   );
 
