@@ -323,103 +323,6 @@ export default function ViewReceipts() {
           />
         </div>
 
-        {editingId && (
-          <div
-            ref={editRef}
-            className="mb-4 border border-tan rounded-xl bg-tan shadow-sm p-3 grid grid-cols-1 md:grid-cols-2 gap-4"
-          >
-            <div>
-              <h2 className="text-base sm:text-lg font-semibold mb-2 text-coffee-dark">Receipt Items</h2>
-              <ul className="space-y-2">
-                {editOrder.map((item, index) => (
-                  <li
-                    key={index}
-                    className="flex justify-between items-center bg-white border border-tan rounded-lg p-2"
-                  >
-                    <div>
-                      <p className="font-semibold text-sm text-coffee-dark">{item.name}</p>
-                      <p className="text-xs text-coffee-light">Rs. {item.price}</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() =>
-                          setEditOrder((prev) =>
-                            prev.map((i, idx) =>
-                              idx === index && i.amount > 1 ? { ...i, amount: i.amount - 1 } : i
-                            )
-                          )
-                        }
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-sm bg-tan hover:bg-gray-200 rounded-lg"
-                      >
-                        -
-                      </button>
-                      <span className="text-sm min-w-[20px] text-center text-coffee-dark">{item.amount}</span>
-                      <button
-                        onClick={() =>
-                          setEditOrder((prev) =>
-                            prev.map((i, idx) =>
-                              idx === index ? { ...i, amount: i.amount + 1 } : i
-                            )
-                          )
-                        }
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-sm bg-tan hover:bg-gray-200 rounded-lg"
-                      >
-                        +
-                      </button>
-                      <button
-                        onClick={() =>
-                          setEditOrder((prev) =>
-                            prev.filter((_, idx) => idx !== index)
-                          )
-                        }
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-red-500 hover:underline text-xs"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <h2 className="text-base sm:text-lg font-semibold mb-2 text-coffee-dark">Search Menu</h2>
-              <input
-                type="text"
-                value={menuSearchTerm}
-                onChange={(e) => setMenuSearchTerm(e.target.value)}
-                placeholder="Search item by name..."
-                className="w-full p-3 h-12 border border-tan rounded-lg mb-2 text-coffee-dark bg-white focus:ring-2 focus:ring-accent"
-              />
-              <ul className="max-h-[40vh] sm:max-h-80 overflow-y-auto bg-white text-coffee-dark rounded-lg border border-tan">
-                {filteredMenu.map((item, i) => (
-                  <li
-                    key={i}
-                    onClick={() => addItemToEditOrder(item)}
-                    className="cursor-pointer px-3 py-2 min-h-[44px] hover:bg-tan flex items-center gap-3 border-b border-tan last:border-b-0"
-                  >
-                    <div className="w-10 h-10 relative rounded-lg overflow-hidden flex-shrink-0">
-                      <Image
-                        src={(() => { if (!item.imageUrl) return "/placeholder.png"; let u = item.imageUrl.replace(/[\r\n]+/g,"").trim().replace(/%20/g," "); if (!u.includes("imagekit.io")) return u; return `${u}${u.includes("?")?"&":"?"}tr=w-80,h-80,c-at_max`; })()}
-                        loading="lazy"
-                        quality={75}
-                        alt={item.name}
-                        fill
-                        className="object-cover rounded-lg"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium truncate">{item.name}</p>
-                      <p className="text-xs text-coffee-light">Rs. {item.price}</p>
-                    </div>
-                    <HiPlus className="text-coffee" />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        )}
-
         {(searchTerm
           ? receipts.filter(r =>
               (r.billNo || r.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -428,73 +331,124 @@ export default function ViewReceipts() {
               String(r.grandTotal).includes(searchTerm)
             )
           : receipts
-        ).map((receipt, idx) => (
+        ).map((receipt, idx) => {
+          const isEditing = editingId === receipt.id;
+          const displayItems = isEditing ? editOrder : (receipt.order || []);
+          const editTotal = isEditing ? displayItems.reduce((s, i) => s + i.price * i.amount, 0) : 0;
+
+          return (
           <m.div
             key={receipt.id || idx}
-            initial={{ opacity: 0, y: 50 }}
+            ref={isEditing ? editRef : null}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: idx < 20 ? idx * 0.05 : 0 }}
-            className="bg-white p-3 sm:p-4 rounded-xl shadow-sm mb-3 border border-tan"
+            transition={{ duration: 0.25, delay: idx < 20 ? idx * 0.03 : 0 }}
+            className={`bg-white rounded-xl shadow-sm mb-3 border overflow-hidden ${isEditing ? "border-coffee ring-2 ring-coffee/20" : "border-gray-200"}`}
           >
-            <div className="bg-coffee text-cream font-bold text-center rounded-lg px-2 py-2 mb-3 font-display">
-              Receipt #{receipt.billNo}
+            {/* Receipt header */}
+            <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 bg-coffee-dark text-cream">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm font-display">#{receipt.billNo}</span>
+                {receipt.status === "cancelled" && <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded font-bold uppercase">Cancelled</span>}
+              </div>
+              <div className="text-right text-[10px] sm:text-xs opacity-80">
+                <div>{receipt.date}</div>
+                <div>{receipt.time || ""}</div>
+              </div>
             </div>
-            <div className="text-sm text-coffee-dark space-y-1">
-              <p><strong className="text-coffee-light">Date:</strong> {receipt.date}</p>
-              <p><strong className="text-coffee-light">Time:</strong> {receipt.time || "N/A"}</p>
-              <p><strong className="text-coffee-light">Payment:</strong> {receipt.paymentMethod}</p>
-              <p><strong className="text-coffee-light">Table:</strong> {receipt.tableNo || "01"}</p>
-              <p><strong className="text-coffee-light">Total:</strong> <span className="font-bold text-coffee">Rs. {receipt.grandTotal?.toLocaleString("en-IN") || "0"}</span></p>
-              {receipt.status === "cancelled" && (
-                <p className="text-red-500 font-bold text-xs uppercase">Cancelled</p>
+
+            <div className="p-3 sm:p-4">
+              {/* Receipt info row */}
+              <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                <span className="capitalize">{receipt.paymentMethod || "cash"}</span>
+                <span>Table: {receipt.tableNo || "01"}</span>
+              </div>
+
+              {/* Items list */}
+              <div className="space-y-1 mb-3">
+                {displayItems.map((item, itemIdx) => (
+                  <div key={itemIdx} className={`flex items-center justify-between py-1.5 ${isEditing ? "bg-gray-50 rounded-lg px-2" : "border-b border-gray-100 last:border-0"}`}>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-gray-800 truncate block">{item.name}</span>
+                    </div>
+                    {isEditing ? (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button onClick={() => setEditOrder((prev) => prev.map((i, idx) => idx === itemIdx && i.amount > 1 ? { ...i, amount: i.amount - 1 } : i))}
+                          className="w-7 h-7 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 text-sm font-bold">-</button>
+                        <span className="text-sm font-bold w-6 text-center">{item.amount}</span>
+                        <button onClick={() => setEditOrder((prev) => prev.map((i, idx) => idx === itemIdx ? { ...i, amount: i.amount + 1 } : i))}
+                          className="w-7 h-7 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 text-sm font-bold">+</button>
+                        <button onClick={() => setEditOrder((prev) => prev.filter((_, idx) => idx !== itemIdx))}
+                          className="w-7 h-7 flex items-center justify-center rounded bg-red-100 hover:bg-red-200 text-red-500 text-xs ml-1"><HiTrash className="w-3.5 h-3.5" /></button>
+                        <span className="text-xs text-gray-500 w-14 text-right">{(item.price * item.amount).toFixed(0)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <span className="text-xs text-gray-400">x{item.amount}</span>
+                        <span className="text-sm font-semibold text-gray-700 w-14 text-right">{(item.price * item.amount).toFixed(0)}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Inline add item (when editing) */}
+              {isEditing && (
+                <div className="mb-3 border border-dashed border-coffee/30 rounded-lg p-2 bg-coffee/5">
+                  <input
+                    type="text"
+                    value={menuSearchTerm}
+                    onChange={(e) => setMenuSearchTerm(e.target.value)}
+                    placeholder="Search to add item..."
+                    className="w-full px-2.5 py-1.5 h-9 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-coffee outline-none mb-1"
+                  />
+                  {menuSearchTerm && (
+                    <ul className="max-h-40 overflow-y-auto bg-white rounded-lg border border-gray-200">
+                      {filteredMenu.slice(0, 10).map((item, i) => (
+                        <li key={i} onClick={() => { addItemToEditOrder(item); setMenuSearchTerm(""); }}
+                          className="cursor-pointer px-2.5 py-1.5 hover:bg-gray-50 flex items-center justify-between border-b border-gray-100 last:border-0">
+                          <span className="text-sm truncate">{item.name}</span>
+                          <span className="text-xs text-coffee font-semibold flex items-center gap-1">{item.price} <HiPlus className="w-3 h-3" /></span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
-            </div>
-            <div className="mt-3">
-              <p className="font-semibold text-coffee text-sm">Items:</p>
-              <ul className="text-sm text-coffee-dark">
-                {(editingId === receipt.id ? editOrder : receipt.order)?.map(
-                  (item, itemIdx) => (
-                    <li key={itemIdx} className="flex justify-between items-center py-0.5">
-                      <span>{item.name} x {item.amount}</span>
-                      <span className="text-coffee-light text-xs">
-                        Rs. {(item.price * item.amount).toFixed(2)}
-                      </span>
-                    </li>
-                  )
+
+              {/* Total */}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                <span className="text-sm font-bold text-gray-800">Total</span>
+                <span className="text-lg font-bold text-coffee">{isEditing ? `${editTotal.toFixed(0)}` : `${(receipt.grandTotal || 0).toLocaleString("en-IN")}`}</span>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 mt-3">
+                {isEditing ? (
+                  <>
+                    <button onClick={() => saveEditedReceipt(receipt.id)}
+                      className="flex-1 h-10 bg-coffee text-cream rounded-lg hover:bg-coffee-dark font-semibold text-sm transition">Save</button>
+                    <button onClick={() => setEditingId(null)}
+                      className="flex-1 h-10 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-semibold text-sm transition">Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => editReceipt(receipt)}
+                      className="flex-1 h-10 flex items-center justify-center gap-1 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 text-sm font-semibold transition">
+                      <HiPencil className="w-4 h-4" /> Edit</button>
+                    <button onClick={() => printReceipt(receipt)}
+                      className="flex-1 h-10 flex items-center justify-center gap-1 bg-coffee text-cream rounded-lg hover:bg-coffee-dark text-sm font-semibold transition">
+                      <HiPrinter className="w-4 h-4" /> Print</button>
+                    <button onClick={() => deleteReceipt(receipt.id, receipt.billNo)}
+                      className="h-10 px-3 flex items-center justify-center bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition">
+                      <HiTrash className="w-4 h-4" /></button>
+                  </>
                 )}
-              </ul>
-            </div>
-            <div className="flex flex-wrap justify-end gap-2 mt-4">
-              {editingId === receipt.id ? (
-                <>
-                  <button
-                    onClick={() => saveEditedReceipt(receipt.id)}
-                    className="min-h-[44px] px-4 py-2 bg-coffee text-cream rounded-lg hover:bg-coffee-dark btn-press font-semibold text-sm"
-                  >Save</button>
-                  <button
-                    onClick={() => setEditingId(null)}
-                    className="min-h-[44px] px-4 py-2 bg-tan text-coffee-dark rounded-lg hover:bg-gray-300 btn-press font-semibold text-sm"
-                  >Cancel</button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => editReceipt(receipt)}
-                    className="min-h-[44px] flex items-center px-3 py-2 bg-accent text-coffee-dark rounded-lg hover:bg-caramel btn-press text-sm font-semibold"
-                  ><HiPencil className="mr-1" /> Edit</button>
-                  <button
-                    onClick={() => deleteReceipt(receipt.id, receipt.billNo)}
-                    className="min-h-[44px] flex items-center px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 btn-press text-sm font-semibold"
-                  ><HiTrash className="mr-1" /> Delete</button>
-                  <button
-                    onClick={() => printReceipt(receipt)}
-                    className="min-h-[44px] flex items-center px-3 py-2 bg-coffee text-cream rounded-lg hover:bg-coffee-dark btn-press text-sm font-semibold"
-                  ><HiPrinter className="mr-1" /> Print</button>
-                </>
-              )}
+              </div>
             </div>
           </m.div>
-        ))}
+          );
+        })}
         <p className="text-[10px] text-gray-400 text-center py-4">&copy; 2026 EndlessScript. All rights reserved.</p>
       </div>
     </div>
