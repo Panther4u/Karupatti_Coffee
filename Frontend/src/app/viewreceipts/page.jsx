@@ -291,13 +291,13 @@ export default function ViewReceipts() {
   if (loading) return <p className="p-4 text-center text-coffee-dark min-h-[100dvh] flex items-center justify-center">Loading receipts...</p>;
 
   return (
-    <div className="w-full flex justify-center font-mono bg-gray-50 min-h-[100dvh] p-3 sm:p-4">
+    <div className="w-full flex justify-center font-mono bg-gray-50 min-h-[100dvh] p-2 sm:p-4">
       {/* Toast Notification */}
       <AnimatePresence>
         {toast && <Toast message={toast} onClose={dismissToast} />}
       </AnimatePresence>
 
-      <div className="w-full">
+      <div className="w-full max-w-2xl mx-auto">
         {/* Sticky search/back header */}
         <div className="sticky top-0 z-10 bg-coffee-dark text-cream rounded-b-xl shadow-md px-3 sm:px-4 pb-3 pt-3 mb-3">
           <div className="mb-3 flex items-center gap-2">
@@ -367,25 +367,27 @@ export default function ViewReceipts() {
               {/* Items list */}
               <div className="space-y-1 mb-3">
                 {displayItems.map((item, itemIdx) => (
-                  <div key={itemIdx} className={`flex items-center justify-between py-1.5 ${isEditing ? "bg-gray-50 rounded-lg px-2" : "border-b border-gray-100 last:border-0"}`}>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm text-gray-800 truncate block">{item.name}</span>
-                    </div>
+                  <div key={itemIdx} className={`py-1.5 ${isEditing ? "bg-gray-50 rounded-lg px-2" : "border-b border-gray-100 last:border-0"}`}>
                     {isEditing ? (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button onClick={() => setEditOrder((prev) => prev.map((i, idx) => idx === itemIdx && i.amount > 1 ? { ...i, amount: i.amount - 1 } : i))}
-                          className="w-7 h-7 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 text-sm font-bold">-</button>
-                        <span className="text-sm font-bold w-6 text-center">{item.amount}</span>
-                        <button onClick={() => setEditOrder((prev) => prev.map((i, idx) => idx === itemIdx ? { ...i, amount: i.amount + 1 } : i))}
-                          className="w-7 h-7 flex items-center justify-center rounded bg-gray-200 hover:bg-gray-300 text-sm font-bold">+</button>
-                        <button onClick={() => setEditOrder((prev) => prev.filter((_, idx) => idx !== itemIdx))}
-                          className="w-7 h-7 flex items-center justify-center rounded bg-red-100 hover:bg-red-200 text-red-500 text-xs ml-1"><HiTrash className="w-3.5 h-3.5" /></button>
-                        <span className="text-xs text-gray-500 w-14 text-right">{(item.price * item.amount).toFixed(0)}</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs sm:text-sm text-gray-800 truncate flex-1 min-w-0">{item.name}</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button onClick={() => setEditOrder((prev) => prev.map((i, idx) => idx === itemIdx && i.amount > 1 ? { ...i, amount: i.amount - 1 } : i))}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-200 active:bg-gray-300 text-sm font-bold">-</button>
+                          <span className="text-sm font-bold w-5 text-center">{item.amount}</span>
+                          <button onClick={() => setEditOrder((prev) => prev.map((i, idx) => idx === itemIdx ? { ...i, amount: i.amount + 1 } : i))}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-200 active:bg-gray-300 text-sm font-bold">+</button>
+                          <button onClick={() => setEditOrder((prev) => prev.filter((_, idx) => idx !== itemIdx))}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-100 active:bg-red-200 text-red-500 ml-0.5"><HiTrash className="w-3.5 h-3.5" /></button>
+                        </div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className="text-xs text-gray-400">x{item.amount}</span>
-                        <span className="text-sm font-semibold text-gray-700 w-14 text-right">{(item.price * item.amount).toFixed(0)}</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs sm:text-sm text-gray-800 truncate flex-1 min-w-0 pr-2">{item.name}</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs text-gray-400">x{item.amount}</span>
+                          <span className="text-xs sm:text-sm font-semibold text-gray-700 w-12 text-right">{(item.price * item.amount).toFixed(0)}</span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -423,24 +425,24 @@ export default function ViewReceipts() {
               </div>
 
               {/* Action buttons */}
-              <div className="flex gap-2 mt-3">
+              <div className="flex gap-1.5 sm:gap-2 mt-3">
                 {isEditing ? (
                   <>
                     <button onClick={() => saveEditedReceipt(receipt.id)}
-                      className="flex-1 h-10 bg-coffee text-cream rounded-lg hover:bg-coffee-dark font-semibold text-sm transition">Save</button>
+                      className="flex-1 h-11 bg-coffee text-cream rounded-lg active:bg-coffee-dark font-semibold text-xs sm:text-sm transition">Save</button>
                     <button onClick={() => setEditingId(null)}
-                      className="flex-1 h-10 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-semibold text-sm transition">Cancel</button>
+                      className="flex-1 h-11 bg-gray-100 text-gray-700 rounded-lg active:bg-gray-200 font-semibold text-xs sm:text-sm transition">Cancel</button>
                   </>
                 ) : (
                   <>
                     <button onClick={() => editReceipt(receipt)}
-                      className="flex-1 h-10 flex items-center justify-center gap-1 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 text-sm font-semibold transition">
-                      <HiPencil className="w-4 h-4" /> Edit</button>
+                      className="flex-1 h-11 flex items-center justify-center gap-1 bg-amber-50 text-amber-700 rounded-lg active:bg-amber-100 text-xs sm:text-sm font-semibold transition">
+                      <HiPencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Edit</button>
                     <button onClick={() => printReceipt(receipt)}
-                      className="flex-1 h-10 flex items-center justify-center gap-1 bg-coffee text-cream rounded-lg hover:bg-coffee-dark text-sm font-semibold transition">
-                      <HiPrinter className="w-4 h-4" /> Print</button>
+                      className="flex-1 h-11 flex items-center justify-center gap-1 bg-coffee text-cream rounded-lg active:bg-coffee-dark text-xs sm:text-sm font-semibold transition">
+                      <HiPrinter className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Print</button>
                     <button onClick={() => deleteReceipt(receipt.id, receipt.billNo)}
-                      className="h-10 px-3 flex items-center justify-center bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition">
+                      className="h-11 w-11 flex items-center justify-center bg-red-50 text-red-500 rounded-lg active:bg-red-100 transition flex-shrink-0">
                       <HiTrash className="w-4 h-4" /></button>
                   </>
                 )}
