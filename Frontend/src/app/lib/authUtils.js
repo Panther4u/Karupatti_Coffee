@@ -26,3 +26,36 @@ export function logout() {
   clearAuth();
   if (typeof window !== "undefined") window.location.href = "/";
 }
+
+/**
+ * Offline-safe auth check.
+ * Returns user data if online and valid, or cached role from localStorage if offline.
+ * Only redirects to login if there's truly no token at all.
+ */
+export async function offlineAuthCheck(authAPI, router) {
+  const token = getToken();
+  if (!token) {
+    if (router) router.push("/");
+    return null;
+  }
+
+  // Try online verification first
+  if (navigator.onLine) {
+    try {
+      const user = await authAPI.me();
+      return user;
+    } catch {
+      // Token expired — clear and redirect
+      clearAuth();
+      if (router) router.push("/");
+      return null;
+    }
+  }
+
+  // Offline — trust localStorage token
+  return {
+    role: typeof window !== "undefined" ? localStorage.getItem("userRole") || "cashier" : "cashier",
+    username: typeof window !== "undefined" ? localStorage.getItem("userName") || "" : "",
+    offline: true,
+  };
+}

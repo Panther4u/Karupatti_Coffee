@@ -6,7 +6,7 @@ const CACHE_STORE = "dataCache";
 function getDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = (e) => {
+    req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(ORDER_STORE)) {
         db.createObjectStore(ORDER_STORE, { keyPath: "tempId" });
@@ -17,6 +17,15 @@ function getDB() {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+  });
+}
+
+// Helper: wait for IDB transaction to complete
+function txComplete(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
   });
 }
 
@@ -32,6 +41,7 @@ export async function queueOrder(orderData) {
     createdAt: new Date().toISOString(),
     synced: false,
   });
+  await txComplete(tx);
   return tempId;
 }
 
@@ -62,11 +72,11 @@ export async function syncOrders(createFn) {
 
   for (const order of pending) {
     try {
-      // Remove internal fields before sending to API
       const { tempId, createdAt, synced, ...orderData } = order;
       const result = await createFn(orderData);
       const tx = db.transaction(ORDER_STORE, "readwrite");
       tx.objectStore(ORDER_STORE).delete(order.tempId);
+      await txComplete(tx);
       results.push({ tempId: order.tempId, success: true });
     } catch (err) {
       results.push({
@@ -84,6 +94,7 @@ export async function clearQueue() {
   const db = await getDB();
   const tx = db.transaction(ORDER_STORE, "readwrite");
   tx.objectStore(ORDER_STORE).clear();
+  await txComplete(tx);
 }
 
 // === LOCAL DATA CACHE (products, settings, tables) ===
@@ -97,7 +108,10 @@ export async function cacheData(key, data) {
       data,
       updatedAt: new Date().toISOString(),
     });
-  } catch {}
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("Cache write failed:", e);
+  }
 }
 
 export async function getCachedData(key) {

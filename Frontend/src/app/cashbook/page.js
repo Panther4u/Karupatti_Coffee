@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { HiArrowLeft, HiCash, HiTrendingUp, HiTrendingDown, HiLockClosed, HiLockOpen, HiRefresh, HiPlus, HiPencil, HiTrash, HiCheckCircle } from "react-icons/hi";
 import { cashbookAPI, expensesAPI, authAPI, fundsAPI } from "@/app/lib/api";
 import { getISTToday } from "@/app/lib/dateUtils";
+import { offlineAuthCheck } from "@/app/lib/authUtils";
 
 export default function CashBookPage() {
   const router = useRouter();
@@ -41,11 +42,9 @@ export default function CashBookPage() {
   const [selectedPot, setSelectedPot] = useState(null);
   const [fundsLoading, setFundsLoading] = useState(false);
 
-  // Auth check
+  // Auth check (offline-safe)
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) { router.replace("/"); return; }
-    authAPI.me().then(() => setIsAuth(true)).catch(() => router.replace("/"));
+    offlineAuthCheck(authAPI, router).then((user) => { if (user) setIsAuth(true); });
   }, [router]);
 
   // Load data

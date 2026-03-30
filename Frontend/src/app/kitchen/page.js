@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { kotAPI, authAPI } from "@/app/lib/api";
 import { getSocket } from "@/app/lib/socket";
 import { HiArrowLeft, HiRefresh, HiClock, HiExclamation } from "react-icons/hi";
+import { offlineAuthCheck } from "@/app/lib/authUtils";
 
 export default function KitchenDisplay() {
   const router = useRouter();
@@ -15,13 +16,9 @@ export default function KitchenDisplay() {
   const socketRef = useRef(null);
   const audioRef = useRef(null);
 
-  // Auth check
+  // Auth check (offline-safe)
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) { router.replace("/"); return; }
-    authAPI.me().then(() => setIsVerified(true)).catch(() => {
-      localStorage.removeItem("token"); router.replace("/");
-    });
+    offlineAuthCheck(authAPI, router).then((user) => { if (user) setIsVerified(true); });
   }, [router]);
 
   // Clock

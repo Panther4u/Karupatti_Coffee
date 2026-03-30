@@ -5,7 +5,7 @@ import { HiShoppingCart, HiCurrencyRupee, HiTrendingUp, HiTrendingDown, HiReceip
 import { authAPI, reportsAPI, ordersAPI, expensesAPI, cashbookAPI, fundsAPI } from "@/app/lib/api";
 import { getISTToday } from "@/app/lib/dateUtils";
 import { calculateSalesSummary, calculateExpenseSummary, aggregatePaymentMethods } from "@/app/lib/calculations";
-import { clearAuth } from "@/app/lib/authUtils";
+import { offlineAuthCheck } from "@/app/lib/authUtils";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -16,9 +16,7 @@ export default function Dashboard() {
   const [payments, setPayments] = useState({});
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) { router.replace("/"); return; }
-    authAPI.me().then(() => setOk(true)).catch(() => { clearAuth(); router.replace("/"); });
+    offlineAuthCheck(authAPI, router).then((user) => { if (user) setOk(true); });
   }, [router]);
 
   const fetchAll = () => {

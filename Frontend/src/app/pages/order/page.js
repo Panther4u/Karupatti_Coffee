@@ -41,7 +41,7 @@ import {
 import { queueOrder, getPendingCount, syncOrders, cacheData, getCachedData } from "@/app/lib/offlineQueue";
 import { getISTToday } from "@/app/lib/dateUtils";
 import { calculateSalesSummary, calculateExpenseSummary, aggregatePaymentMethods } from "@/app/lib/calculations";
-import { clearAuth } from "@/app/lib/authUtils";
+import { clearAuth, offlineAuthCheck } from "@/app/lib/authUtils";
 const cleanUrl = (u) => (u ? u.replace(/[\r\n]+/g, "").trim().replace(/%20/g, " ") : "");
 // Product.type (1-13) → category name
 const categoryMap = {1:"Tea",2:"Coffee",3:"Dairy Products",4:"Snacks",5:"Evening Special",6:"Fresh Juice",7:"Cool Drinks",8:"Ice Cream",9:"Karupatti Ice Cream",10:"Karupatti Snacks",11:"Other Snacks",12:"Biscuits & Cakes",13:"Parcel"};
@@ -134,19 +134,16 @@ export default function OrderPage() {
   const [offlineCount, setOfflineCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
 
-  // Auth check
+  // Auth check (offline-safe — uses cached token when offline)
   useEffect(() => {
     const checkAuth = async () => {
-      try {
-        const user = await authAPI.me();
+      const user = await offlineAuthCheck(authAPI, router);
+      if (user) {
         setIsAuthenticated(true);
-        setCashier(user.username || "Cashier");
-        setUserRole(user.role || "cashier");
-      } catch (err) {
-        router.push("/");
-      } finally {
-        setIsLoading(false);
+        setCashier(user.username || localStorage.getItem("userName") || "Cashier");
+        setUserRole(user.role || localStorage.getItem("userRole") || "cashier");
       }
+      setIsLoading(false);
     };
     checkAuth();
   }, [router]);
@@ -2579,7 +2576,7 @@ function DailyExpensePopup({ onClose }) {
   const ic = "w-full border border-gray-200 px-3 py-2 h-9 rounded-lg text-sm focus:ring-2 focus:ring-coffee outline-none";
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4" onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4" data-popup="expense" onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); } }}>
       <div className="bg-white rounded-2xl w-full max-w-xl max-h-[85vh] overflow-hidden shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-white border-b px-4 py-3 flex items-center justify-between z-10">
           <h2 className="text-lg font-bold">Daily Expenses</h2>
@@ -2598,11 +2595,11 @@ function DailyExpensePopup({ onClose }) {
               <option value="Samosa">Samosa</option><option value="Puffs">Puffs</option><option value="Water">Water</option><option value="Wastage">Wastage</option><option value="Other">Other</option>
               <option value="Salary">Salary</option><option value="Rent">Rent</option><option value="EB">EB</option><option value="Gas">Gas</option>
             </select>
-            <input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="₹ Amount" className={ic} />
+            <input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSubmit(); } }} placeholder="₹ Amount" className={ic} />
             <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className={ic}><option value="out">Out</option><option value="in">In</option></select>
             <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} className={ic}><option>Cash</option><option>UPI</option><option>Card</option><option>Bank</option></select>
           </div>
-          <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes" className={ic} />
+          <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSubmit(); } }} placeholder="Notes" className={ic} />
           <button onClick={handleSubmit} className={`w-full h-9 ${editId ? "bg-accent" : "bg-coffee"} text-white rounded-lg text-sm font-bold hover:opacity-90`}>{editId ? "Update" : "Add Expense"}</button>
 
           {/* Summary */}

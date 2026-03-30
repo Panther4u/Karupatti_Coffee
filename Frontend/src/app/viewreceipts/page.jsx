@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getSocket } from "@/app/lib/socket";
 import { authAPI, receiptsAPI, productsAPI } from "@/app/lib/api";
-import { clearAuth } from "@/app/lib/authUtils";
+import { clearAuth, offlineAuthCheck } from "@/app/lib/authUtils";
 
 /** Toast notification component */
 function Toast({ message, onClose }) {
@@ -58,19 +58,7 @@ export default function ViewReceipts() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.replace("/");
-      return;
-    }
-
-    // Verify token with backend
-    authAPI.me()
-      .then(() => setAuthChecked(true))
-      .catch(() => {
-        clearAuth();
-        router.replace("/");
-      });
+    offlineAuthCheck(authAPI, router).then((user) => { if (user) setAuthChecked(true); });
   }, [router]);
 
   useEffect(() => {
