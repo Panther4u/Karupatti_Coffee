@@ -298,12 +298,12 @@ export default function OrderPage() {
   <div class="center small">Tamil Nadu | Ph: 7010452495</div>
   <div class="center small">GSTIN: 33GGTPS6619J1ZJ</div>
   <div class="sep2"></div>
-  <div class="center bold">TAX INVOICE</div>
+  <div class="center bold">BILL</div>
   <div class="sep"></div>
   <table>
-    <tr><td>Bill: ${esc(data.billNo || "—")}</td><td class="right">${data.date || ""}</td></tr>
-    <tr><td>Invoice: ${esc(data.invoiceNumber || "—")}</td><td class="right">${data.time || ""}</td></tr>
-    <tr><td>Payment: ${esc((data.payment || "").toUpperCase())}</td><td class="right">Table: ${tableNo || "01"}</td></tr>
+    <tr><td>Bill No: ${esc(data.billNo || "—")}</td><td class="right">Date: ${data.date || ""}</td></tr>
+    <tr><td>Payment: ${esc((data.payment || "").toUpperCase())}</td><td class="right">Time: ${data.time || ""}</td></tr>
+    <tr><td>Table: ${tableNo || "01"}</td><td class="right"></td></tr>
   </table>
   <div class="sep"></div>
   <table>
@@ -323,8 +323,6 @@ export default function OrderPage() {
   <div class="sep2"></div>
   <div class="center" style="margin-top:6px;">
     <div class="bold">Thank You! Visit Again ☕</div>
-    <div class="small" style="margin-top:2px;">Karupatti Coffee POS</div>
-    <div class="small" style="margin-top:4px;color:#999;">Powered by EndlessScript</div>
   </div>
 </body></html>`;
 
@@ -1527,8 +1525,8 @@ function OrderCompletePopup({ receiptData, onNewOrder, onPrint }) {
               <p className="font-bold text-base text-gray-900 font-mono">{receiptData?.billNo || "—"}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-500">Invoice</p>
-              <p className="font-semibold text-sm text-gray-700 font-mono">{receiptData?.invoiceNumber || "—"}</p>
+              <p className="text-xs text-gray-500">Bill No</p>
+              <p className="font-semibold text-sm text-gray-700 font-mono">{receiptData?.billNo || receiptData?.invoiceNumber || "—"}</p>
             </div>
           </div>
           <div className="flex justify-between mt-2 text-xs text-gray-500">
