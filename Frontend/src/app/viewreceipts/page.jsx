@@ -44,6 +44,7 @@ export default function ViewReceipts() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [editOrder, setEditOrder] = useState([]);
+  const [editPaymentMethod, setEditPaymentMethod] = useState("cash");
   const [menu, setMenu] = useState([]);
   const [shopSettings, setShopSettings] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
@@ -160,6 +161,7 @@ export default function ViewReceipts() {
   const editReceipt = (receipt) => {
     setEditingId(receipt.id);
     setEditOrder([...receipt.order]);
+    setEditPaymentMethod(receipt.paymentMethod || "cash");
   };
 
   const saveEditedReceipt = async (receiptId) => {
@@ -168,11 +170,11 @@ export default function ViewReceipts() {
     const discount = editReceipt?.discount || 0;
     const grandTotal = updatedTotal - discount;
     try {
-      await receiptsAPI.update(receiptId, { order: editOrder, total: updatedTotal, grandTotal });
+      await receiptsAPI.update(receiptId, { order: editOrder, total: updatedTotal, grandTotal, paymentMethod: editPaymentMethod });
       alert("Receipt updated!");
       setReceipts((prev) =>
         prev.map((r) =>
-          r.id === receiptId ? { ...r, order: editOrder, total: updatedTotal, grandTotal } : r
+          r.id === receiptId ? { ...r, order: editOrder, total: updatedTotal, grandTotal, paymentMethod: editPaymentMethod } : r
         )
       );
       setEditingId(null);
@@ -360,7 +362,7 @@ export default function ViewReceipts() {
             <div className="p-3 sm:p-4">
               {/* Receipt info row */}
               <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                <span className="capitalize">{receipt.paymentMethod || "cash"}</span>
+                <span className="capitalize">{isEditing ? editPaymentMethod : (receipt.paymentMethod || "cash")}</span>
                 <span>Table: {receipt.tableNo || "01"}</span>
               </div>
 
@@ -415,6 +417,28 @@ export default function ViewReceipts() {
                       ))}
                     </ul>
                   )}
+                </div>
+              )}
+
+              {/* Payment method selector (when editing) */}
+              {isEditing && (
+                <div className="mb-3">
+                  <p className="text-[10px] text-gray-500 uppercase font-bold mb-1.5">Payment Method</p>
+                  <div className="flex gap-1.5">
+                    {["cash", "upi", "card", "other"].map((method) => (
+                      <button
+                        key={method}
+                        onClick={() => setEditPaymentMethod(method)}
+                        className={`flex-1 h-9 rounded-lg text-xs font-semibold capitalize transition ${
+                          editPaymentMethod === method
+                            ? "bg-coffee text-cream"
+                            : "bg-gray-100 text-gray-600 active:bg-gray-200"
+                        }`}
+                      >
+                        {method === "upi" ? "UPI" : method}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
