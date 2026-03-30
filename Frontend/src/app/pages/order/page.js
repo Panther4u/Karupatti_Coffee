@@ -2692,6 +2692,8 @@ function DailyReportPopup({ onClose }) {
 function DailyExpensePopup({ onClose }) {
   const [date, setDate] = useState(getISTToday());
   const [expenses, setExpenses] = useState([]);
+  const [todayIncome, setTodayIncome] = useState(0);
+  const [todayOrders, setTodayOrders] = useState(0);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ category: "", amount: "", notes: "", type: "out", method: "Cash" });
   const [editId, setEditId] = useState(null);
@@ -2700,9 +2702,16 @@ function DailyExpensePopup({ onClose }) {
   const fetchExpenses = async () => {
     setLoading(true);
     try {
-      const data = await expensesAPI.getByDate(date);
-      const items = data?.expenses || (Array.isArray(data) ? data : []);
+      const [expData, ordData] = await Promise.all([
+        expensesAPI.getByDate(date).catch(() => []),
+        ordersAPI.getAll({ date, status: "completed", limit: 500 }).catch(() => ({ orders: [] })),
+      ]);
+      const items = expData?.expenses || (Array.isArray(expData) ? expData : []);
       setExpenses(items.map((e) => ({ ...e, id: e._id || e.id })));
+      const orders = ordData?.orders || (Array.isArray(ordData) ? ordData : []);
+      const income = orders.reduce((sum, o) => sum + (o.grandTotal || 0), 0);
+      setTodayIncome(income);
+      setTodayOrders(orders.length);
     } catch {} finally { setLoading(false); }
   };
 
@@ -2757,11 +2766,33 @@ function DailyExpensePopup({ onClose }) {
           <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSubmit(); } }} placeholder="Notes" className={ic} />
           <button onClick={handleSubmit} className={`w-full h-9 ${editId ? "bg-accent" : "bg-coffee"} text-white rounded-lg text-sm font-bold hover:opacity-90`}>{editId ? "Update" : "Add Expense"}</button>
 
-          {/* Summary */}
+          {/* Today's Income */}
+          <div className="bg-coffee/5 border border-coffee/20 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-coffee uppercase">Today&apos;s Income</span>
+              <span className="text-[10px] text-gray-400">{todayOrders} orders</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-xs font-bold">
+              <div className="bg-green-50 text-green-700 text-center p-2 rounded-lg">
+                <p className="text-[9px] opacity-70">Sales</p>
+                <p>₹{todayIncome.toFixed(0)}</p>
+              </div>
+              <div className="bg-red-50 text-red-700 text-center p-2 rounded-lg">
+                <p className="text-[9px] opacity-70">Expenses</p>
+                <p>₹{totalOut.toFixed(0)}</p>
+              </div>
+              <div className={`text-center p-2 rounded-lg ${(todayIncome - totalOut + totalIn) >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                <p className="text-[9px] opacity-70">Remaining</p>
+                <p>₹{(todayIncome - totalOut + totalIn).toFixed(0)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Expense Summary */}
           <div className="grid grid-cols-3 gap-2 text-xs font-bold">
             <div className="bg-green-50 text-green-700 text-center p-2 rounded-lg">In: ₹{totalIn.toFixed(0)}</div>
             <div className="bg-red-50 text-red-700 text-center p-2 rounded-lg">Out: ₹{totalOut.toFixed(0)}</div>
-            <div className="bg-gray-100 text-gray-800 text-center p-2 rounded-lg">Bal: ₹{(totalIn - totalOut).toFixed(0)}</div>
+            <div className="bg-gray-100 text-gray-800 text-center p-2 rounded-lg">Net: ₹{(totalIn - totalOut).toFixed(0)}</div>
           </div>
 
           {/* List */}
