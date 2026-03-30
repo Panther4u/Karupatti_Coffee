@@ -2602,87 +2602,320 @@ function SalesSummaryPopup({ onClose }) {
 // ===== DAILY REPORT POPUP =====
 function DailyReportPopup({ onClose }) {
   const [date, setDate] = useState(getISTToday());
-  const [sales, setSales] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [payments, setPayments] = useState({});
+  const [report, setReport] = useState(null);
+  const [shopName, setShopName] = useState("NELLAI KARUPATTI COFFEE");
   const [loading, setLoading] = useState(true);
+  const reportRef = useRef(null);
 
   useEffect(() => {
     if (!date) return;
     setLoading(true);
     Promise.all([
-      reportsAPI.salesSummaryByDate(date).catch(() => []),
-      expensesAPI.getByDate(date).catch(() => []),
-      ordersAPI.getAll({ status: "completed", date, limit: 500 }).catch(() => ({ orders: [] })),
-    ]).then(([sRaw, eRaw, oRaw]) => {
-      const s = sRaw?.data ?? sRaw;
-      setSales(Array.isArray(s) ? s : []);
-      const expData = eRaw?.expenses || (Array.isArray(eRaw) ? eRaw : []);
-      setExpenses(expData);
-      const o = oRaw?.data ?? oRaw;
-      const orders = o?.orders || o;
-      setPayments(aggregatePaymentMethods(Array.isArray(orders) ? orders : []));
-    }).catch(() => {}).finally(() => setLoading(false));
+      reportsAPI.daily(date).catch(() => null),
+      settingsAPI.get().catch(() => null),
+    ]).then(([rpt, settings]) => {
+      const d = rpt?.data ?? rpt;
+      setReport(d);
+      if (settings?.shopName) setShopName(settings.shopName);
+    }).finally(() => setLoading(false));
   }, [date]);
 
-  const { totalSales, totalCost, grossProfit } = calculateSalesSummary(sales);
-  const { netExpenses: totalExpenses } = calculateExpenseSummary(expenses);
-  const netProfit = grossProfit - totalExpenses;
+  const fmt = (v) => Number(v || 0).toLocaleString("en-IN");
+  const fmtDate = (d) => { try { const parts = d.split("-"); return `${parts[2]}/${parts[1]}/${parts[0]}`; } catch { return d; } };
+
+  const salesData = report?.salesData || [];
+  const expenses = report?.expenses || [];
+  const payments = report?.payments || {};
+  const totalSales = report?.totalSales || 0;
+  const totalCost = report?.totalCost || 0;
+  const grossProfit = report?.grossProfit || 0;
+  const totalExpOut = report?.totalExpensesOut || 0;
+  const totalExpIn = report?.totalExpensesIn || 0;
+  const netExpenses = report?.netExpenses || 0;
+  const netProfit = report?.netProfit || 0;
+  const totalOrders = report?.totalOrders || 0;
+
+  const topProducts = [...salesData].sort((a, b) => (b.totalSales || 0) - (a.totalSales || 0)).slice(0, 10);
+  const paymentEntries = Object.entries(payments);
+  const paymentTotal = paymentEntries.reduce((s, [, v]) => s + v, 0);
+  const expOut = expenses.filter(e => e.type === "out");
+  const expIn = expenses.filter(e => e.type === "in");
+  const totalItems = salesData.reduce((s, p) => s + (p.soldQty || 0), 0);
+
+  // PDF / Print
+  const handleDownloadPDF = () => {
+    const esc = (s) => String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+    const productRows = salesData.sort((a, b) => (b.soldQty || 0) - (a.soldQty || 0)).map(p => {
+      const profit = (p.profit || 0);
+      return `<tr><td>${esc(p.name)}</td><td class="r">${p.soldQty}</td><td class="r">${p.price}</td><td class="r">${fmt(p.totalSales)}</td><td class="r">${fmt(p.totalCost)}</td><td class="r ${profit >= 0 ? "green" : "red"}">${profit >= 0 ? "+" : ""}${fmt(profit)}</td></tr>`;
+    }).join("");
+
+    const payRows = paymentEntries.map(([m, a]) => {
+      const pct = paymentTotal > 0 ? ((a / paymentTotal) * 100).toFixed(1) : 0;
+      return `<tr><td>${esc(m)}</td><td class="r">${fmt(a)}</td><td class="r">${pct}%</td></tr>`;
+    }).join("");
+
+    const expRows = expenses.map(e => {
+      return `<tr><td>${esc(e.category)}</td><td>${e.type === "in" ? "IN" : "OUT"}</td><td>${esc(e.method)}</td><td class="r">${e.type === "in" ? "+" : "-"}₹${fmt(e.amount)}</td></tr>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html><html><head><title>Daily Report - ${date}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #333; line-height: 1.4; }
+  .header { text-align: center; border-bottom: 2px solid #6F4E37; padding-bottom: 8px; margin-bottom: 12px; }
+  .header h1 { font-size: 18px; color: #6F4E37; margin-bottom: 2px; }
+  .header p { font-size: 11px; color: #888; }
+  .summary { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .card { flex: 1; min-width: 100px; border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px; text-align: center; }
+  .card .label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card .val { font-size: 16px; font-weight: 700; margin-top: 2px; }
+  .green { color: #16a34a; } .red { color: #dc2626; } .blue { color: #2563eb; } .brown { color: #6F4E37; }
+  h2 { font-size: 12px; color: #6F4E37; text-transform: uppercase; letter-spacing: 1px; margin: 14px 0 6px; border-bottom: 1px solid #f0e6d8; padding-bottom: 3px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  th, td { padding: 4px 6px; border-bottom: 1px solid #f0f0f0; font-size: 10px; }
+  th { background: #faf6f0; color: #6F4E37; font-weight: 600; text-align: left; }
+  .r { text-align: right; }
+  .total-row { font-weight: 700; border-top: 2px solid #6F4E37; background: #faf6f0; }
+  .footer { text-align: center; margin-top: 16px; padding-top: 8px; border-top: 1px solid #e0e0e0; font-size: 9px; color: #aaa; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style></head><body>
+  <div class="header">
+    <h1>${esc(shopName)}</h1>
+    <p>Daily Sales Report &middot; ${fmtDate(date)}</p>
+  </div>
+
+  <div class="summary">
+    <div class="card"><div class="label">Total Sales</div><div class="val green">₹${fmt(totalSales)}</div></div>
+    <div class="card"><div class="label">Orders</div><div class="val blue">${totalOrders}</div></div>
+    <div class="card"><div class="label">Items Sold</div><div class="val brown">${totalItems}</div></div>
+    <div class="card"><div class="label">Cost</div><div class="val" style="color:#888">₹${fmt(totalCost)}</div></div>
+    <div class="card"><div class="label">Expenses</div><div class="val red">₹${fmt(totalExpOut)}</div></div>
+    <div class="card"><div class="label">Net Profit</div><div class="val ${netProfit >= 0 ? "green" : "red"}">₹${fmt(netProfit)}</div></div>
+  </div>
+
+  <h2>Payment Breakdown</h2>
+  <table><thead><tr><th>Method</th><th class="r">Amount</th><th class="r">%</th></tr></thead>
+  <tbody>${payRows}
+  <tr class="total-row"><td>Total</td><td class="r">₹${fmt(paymentTotal)}</td><td class="r">100%</td></tr></tbody></table>
+
+  <h2>Products Sold (${salesData.length} items)</h2>
+  <table><thead><tr><th>Product</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Sales</th><th class="r">Cost</th><th class="r">Profit</th></tr></thead>
+  <tbody>${productRows}
+  <tr class="total-row"><td>Total</td><td class="r">${totalItems}</td><td></td><td class="r">₹${fmt(totalSales)}</td><td class="r">₹${fmt(totalCost)}</td><td class="r ${grossProfit >= 0 ? "green" : "red"}">₹${fmt(grossProfit)}</td></tr></tbody></table>
+
+  ${expenses.length > 0 ? `<h2>Expenses (${expenses.length})</h2>
+  <table><thead><tr><th>Category</th><th>Type</th><th>Method</th><th class="r">Amount</th></tr></thead>
+  <tbody>${expRows}
+  <tr class="total-row"><td colspan="3">Net Expenses (Out - In)</td><td class="r red">₹${fmt(netExpenses)}</td></tr></tbody></table>` : ""}
+
+  <h2>Profit Summary</h2>
+  <table>
+    <tr><td>Total Sales Revenue</td><td class="r">₹${fmt(totalSales)}</td></tr>
+    <tr><td>Less: Product Cost</td><td class="r red">- ₹${fmt(totalCost)}</td></tr>
+    <tr style="border-top:1px solid #ccc;font-weight:600"><td>Gross Profit</td><td class="r ${grossProfit >= 0 ? "green" : "red"}">₹${fmt(grossProfit)}</td></tr>
+    <tr><td>Less: Net Expenses</td><td class="r red">- ₹${fmt(netExpenses)}</td></tr>
+    <tr class="total-row"><td>NET PROFIT</td><td class="r ${netProfit >= 0 ? "green" : "red"}" style="font-size:14px">₹${fmt(netProfit)}</td></tr>
+  </table>
+
+  <div class="footer">Generated on ${new Date().toLocaleString("en-IN")} &middot; ${esc(shopName)} POS &middot; Powered by EndlessScript &copy; 2026</div>
+</body></html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:none;";
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 5000);
+  };
+
+  // Share as text
+  const handleShare = async () => {
+    const text = `${shopName} - Daily Report (${fmtDate(date)})
+━━━━━━━━━━━━━━━━
+Sales: ₹${fmt(totalSales)} (${totalOrders} orders)
+Cost: ₹${fmt(totalCost)}
+Gross Profit: ₹${fmt(grossProfit)}
+Expenses: ₹${fmt(totalExpOut)}
+Net Profit: ₹${fmt(netProfit)}
+━━━━━━━━━━━━━━━━
+${paymentEntries.map(([m, a]) => `${m}: ₹${fmt(a)}`).join(" | ")}
+━━━━━━━━━━━━━━━━
+Top Products:
+${topProducts.slice(0, 5).map((p, i) => `${i + 1}. ${p.name} ×${p.soldQty} = ₹${fmt(p.totalSales)}`).join("\n")}
+━━━━━━━━━━━━━━━━
+Generated by ${shopName} POS`;
+
+    if (navigator.share) {
+      try { await navigator.share({ title: `Daily Report - ${date}`, text }); } catch {}
+    } else {
+      try { await navigator.clipboard.writeText(text); alert("Report copied to clipboard!"); } catch { alert("Could not copy"); }
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4" onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="sticky top-0 bg-white border-b px-4 py-3 flex items-center justify-between z-10">
-          <h2 className="text-lg font-bold">Daily Report</h2>
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="sticky top-0 bg-coffee-dark text-cream px-4 py-3 flex items-center justify-between z-10">
+          <div>
+            <h2 className="text-base font-bold font-display">Daily Report</h2>
+            <p className="text-[10px] text-cream/60">{shopName}</p>
+          </div>
           <div className="flex items-center gap-2">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border border-gray-200 px-2 py-1 h-8 rounded-lg text-xs" />
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><HiX className="w-5 h-5" /></button>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border border-white/20 bg-white/10 text-cream px-2 py-1 h-8 rounded-lg text-xs outline-none focus:ring-2 focus:ring-accent" />
+            <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-lg"><HiX className="w-5 h-5" /></button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {loading ? <div className="text-center py-8"><div className="w-8 h-8 border-4 border-coffee border-t-transparent rounded-full animate-spin mx-auto" /></div> : <>
-            {/* Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-center"><p className="text-[10px] text-green-700">Sales</p><p className="text-sm font-bold">₹{totalSales.toFixed(0)}</p></div>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-center"><p className="text-[10px] text-yellow-700">Cost</p><p className="text-sm font-bold">₹{totalCost.toFixed(0)}</p></div>
-              <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-center"><p className="text-[10px] text-red-700">Expenses</p><p className="text-sm font-bold">₹{totalExpenses.toFixed(0)}</p></div>
-              <div className={`${netProfit >= 0 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"} border rounded-lg p-2 text-center`}><p className="text-[10px]">Net Profit</p><p className={`text-sm font-bold ${netProfit >= 0 ? "text-green-700" : "text-red-700"}`}>₹{netProfit.toFixed(0)}</p></div>
+
+        {/* Body */}
+        <div ref={reportRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+          {loading ? <div className="text-center py-12"><div className="w-8 h-8 border-4 border-coffee border-t-transparent rounded-full animate-spin mx-auto" /></div> : !report ? <p className="text-center text-gray-400 py-12">No data for this date</p> : <>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                <p className="text-[9px] text-green-600 font-bold uppercase">Sales</p>
+                <p className="text-lg font-bold text-green-700">₹{fmt(totalSales)}</p>
+                <p className="text-[10px] text-green-600">{totalOrders} orders &middot; {totalItems} items</p>
+              </div>
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+                <p className="text-[9px] text-red-600 font-bold uppercase">Expenses</p>
+                <p className="text-lg font-bold text-red-700">₹{fmt(totalExpOut)}</p>
+                <p className="text-[10px] text-red-600">{expOut.length} items</p>
+              </div>
+              <div className={`${netProfit >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"} border rounded-xl p-3 text-center`}>
+                <p className={`text-[9px] font-bold uppercase ${netProfit >= 0 ? "text-emerald-600" : "text-red-600"}`}>Net Profit</p>
+                <p className={`text-lg font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>₹{fmt(netProfit)}</p>
+                <p className={`text-[10px] ${netProfit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                  {totalSales > 0 ? `${((netProfit / totalSales) * 100).toFixed(1)}% margin` : "—"}
+                </p>
+              </div>
             </div>
-            {/* Payments */}
-            {Object.keys(payments).length > 0 && (
-              <div><h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Payments</h3>
-                <div className="grid grid-cols-3 gap-2">{Object.entries(payments).map(([m, a], i) => (
-                  <div key={i} className="border border-gray-200 p-2 rounded-lg text-xs"><div className="font-medium">{m}</div><div className="font-bold text-coffee">₹{a.toFixed(0)}</div></div>
-                ))}</div>
+
+            {/* Profit Breakdown */}
+            <div className="bg-white border border-gray-200 rounded-xl p-3">
+              <h3 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Profit Breakdown</h3>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between"><span className="text-gray-600">Sales Revenue</span><span className="font-bold text-green-700">₹{fmt(totalSales)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600">Product Cost</span><span className="font-bold text-gray-500">- ₹{fmt(totalCost)}</span></div>
+                <div className="flex justify-between border-t border-gray-100 pt-1"><span className="text-gray-700 font-semibold">Gross Profit</span><span className={`font-bold ${grossProfit >= 0 ? "text-green-700" : "text-red-600"}`}>₹{fmt(grossProfit)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600">Expenses Out</span><span className="font-bold text-red-600">- ₹{fmt(totalExpOut)}</span></div>
+                {totalExpIn > 0 && <div className="flex justify-between"><span className="text-gray-600">Expenses In</span><span className="font-bold text-green-600">+ ₹{fmt(totalExpIn)}</span></div>}
+                <div className="flex justify-between border-t-2 border-coffee pt-1.5">
+                  <span className="font-bold text-gray-800">NET PROFIT</span>
+                  <span className={`text-base font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>₹{fmt(netProfit)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Breakdown */}
+            {paymentEntries.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl p-3">
+                <h3 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Payment Methods</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {paymentEntries.map(([method, amount], i) => {
+                    const pct = paymentTotal > 0 ? ((amount / paymentTotal) * 100).toFixed(0) : 0;
+                    const colors = { Cash: "bg-green-50 border-green-200 text-green-700", Upi: "bg-blue-50 border-blue-200 text-blue-700", UPI: "bg-blue-50 border-blue-200 text-blue-700", Card: "bg-purple-50 border-purple-200 text-purple-700" };
+                    const color = colors[method] || "bg-gray-50 border-gray-200 text-gray-700";
+                    return (
+                      <div key={i} className={`border rounded-lg p-2 text-center ${color}`}>
+                        <p className="text-[10px] font-semibold">{method}</p>
+                        <p className="text-sm font-bold">₹{fmt(amount)}</p>
+                        <p className="text-[9px] opacity-70">{pct}%</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
-            {/* Products sold */}
-            {sales.length > 0 && (
-              <div><h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Products Sold</h3>
-                <div className="space-y-1">{sales.map((item, idx) => {
-                  const profit = (item.profit || 0);
-                  return (
-                    <div key={idx} className="flex justify-between items-center px-3 py-2 bg-white border border-gray-100 rounded-lg">
-                      <div><span className="font-semibold text-sm">{item.name}</span> <span className="text-xs text-gray-400">×{item.soldQty}</span></div>
-                      <div className="text-right"><span className="text-xs">₹{item.totalSales?.toFixed(0)}</span> <span className={`text-xs font-bold ml-2 ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>{profit >= 0 ? "+" : ""}₹{profit.toFixed(0)}</span></div>
-                    </div>
-                  );
-                })}</div>
+
+            {/* Top Products */}
+            {topProducts.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl p-3">
+                <h3 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Products Sold ({salesData.length})</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-1.5 px-1 text-gray-500">#</th>
+                        <th className="text-left py-1.5 px-1 text-gray-500">Product</th>
+                        <th className="text-right py-1.5 px-1 text-gray-500">Qty</th>
+                        <th className="text-right py-1.5 px-1 text-gray-500">Sales</th>
+                        <th className="text-right py-1.5 px-1 text-gray-500">Profit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salesData.sort((a, b) => (b.soldQty || 0) - (a.soldQty || 0)).map((p, i) => {
+                        const profit = p.profit || 0;
+                        return (
+                          <tr key={i} className="border-b border-gray-50">
+                            <td className="py-1.5 px-1 text-gray-400">{i + 1}</td>
+                            <td className="py-1.5 px-1 font-medium text-gray-800 max-w-[120px] truncate">{p.name}</td>
+                            <td className="py-1.5 px-1 text-right text-gray-600">{p.soldQty}</td>
+                            <td className="py-1.5 px-1 text-right font-semibold text-coffee">₹{fmt(p.totalSales)}</td>
+                            <td className={`py-1.5 px-1 text-right font-bold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>{profit >= 0 ? "+" : ""}₹{fmt(profit)}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="border-t-2 border-coffee font-bold">
+                        <td className="py-1.5 px-1" colSpan={2}>Total</td>
+                        <td className="py-1.5 px-1 text-right">{totalItems}</td>
+                        <td className="py-1.5 px-1 text-right text-coffee">₹{fmt(totalSales)}</td>
+                        <td className={`py-1.5 px-1 text-right ${grossProfit >= 0 ? "text-green-700" : "text-red-700"}`}>₹{fmt(grossProfit)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
-            {/* Expenses */}
+
+            {/* Expenses Detail */}
             {expenses.length > 0 && (
-              <div><h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Expenses</h3>
-                <div className="space-y-1">{expenses.map((e, i) => (
-                  <div key={i} className="flex justify-between items-center px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
-                    <div><span className="font-semibold text-sm">{e.category}</span> <span className="text-xs text-gray-400">{e.method}</span></div>
-                    <span className="font-bold text-sm text-red-600">₹{Number(e.amount).toFixed(0)}</span>
+              <div className="bg-white border border-gray-200 rounded-xl p-3">
+                <h3 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Expenses ({expenses.length})</h3>
+                <div className="space-y-1">
+                  {expenses.map((e, i) => (
+                    <div key={i} className={`flex justify-between items-center px-2.5 py-1.5 rounded-lg text-xs ${e.type === "in" ? "bg-green-50 border border-green-100" : "bg-red-50 border border-red-100"}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${e.type === "in" ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}>{e.type === "in" ? "IN" : "OUT"}</span>
+                        <span className="font-semibold text-gray-800">{e.category}</span>
+                        <span className="text-gray-400">{e.method}</span>
+                        {e.notes && <span className="text-gray-400">· {e.notes}</span>}
+                      </div>
+                      <span className={`font-bold ${e.type === "in" ? "text-green-700" : "text-red-700"}`}>
+                        {e.type === "in" ? "+" : "-"}₹{fmt(e.amount)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center px-2.5 py-2 border-t-2 border-gray-300 mt-1 font-bold text-sm">
+                    <span>Net Expenses</span>
+                    <span className="text-red-700">₹{fmt(netExpenses)}</span>
                   </div>
-                ))}</div>
+                </div>
               </div>
             )}
+
           </>}
         </div>
+
+        {/* Footer Actions */}
+        {!loading && report && (
+          <div className="sticky bottom-0 bg-white border-t px-4 py-3 flex gap-2">
+            <button onClick={handleDownloadPDF} className="flex-1 h-11 bg-coffee text-cream rounded-xl font-semibold text-sm flex items-center justify-center gap-2 active:bg-coffee-dark transition">
+              <HiPrinter className="w-4 h-4" /> Download / Print
+            </button>
+            <button onClick={handleShare} className="flex-1 h-11 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 active:bg-gray-200 transition">
+              <HiShare className="w-4 h-4" /> Share
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
