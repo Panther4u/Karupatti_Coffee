@@ -39,9 +39,13 @@ router.get(
       status: order.status,
       settings: {
         shopName: settings.shopName,
+        shopTagline: settings.shopTagline,
         shopAddress: settings.shopAddress,
+        shopCity: settings.shopCity,
         shopPhone: settings.shopPhone,
+        shopEmail: settings.shopEmail,
         gstNumber: settings.gstNumber,
+        fssaiNumber: settings.fssaiNumber,
         invoicePrefix: settings.invoicePrefix,
         receiptHeader: settings.receiptHeader,
         receiptFooter: settings.receiptFooter,

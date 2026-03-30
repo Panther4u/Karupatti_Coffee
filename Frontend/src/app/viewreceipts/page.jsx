@@ -13,7 +13,7 @@ import { ArrowLeftIcon } from "@heroicons/react/24/solid";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getSocket } from "@/app/lib/socket";
-import { authAPI, receiptsAPI, productsAPI } from "@/app/lib/api";
+import { authAPI, receiptsAPI, productsAPI, settingsAPI } from "@/app/lib/api";
 import { clearAuth, offlineAuthCheck } from "@/app/lib/authUtils";
 
 /** Toast notification component */
@@ -45,6 +45,7 @@ export default function ViewReceipts() {
   const [editingId, setEditingId] = useState(null);
   const [editOrder, setEditOrder] = useState([]);
   const [menu, setMenu] = useState([]);
+  const [shopSettings, setShopSettings] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [menuSearchTerm, setMenuSearchTerm] = useState("");
   const [toast, setToast] = useState(null);
@@ -86,6 +87,10 @@ export default function ViewReceipts() {
         setMenu(items);
       })
       .catch((err) => console.error("Menu fetch failed:", err));
+
+    settingsAPI.get()
+      .then((s) => setShopSettings(s || {}))
+      .catch(() => {});
   }, [authChecked]);
 
   // Socket.io real-time listeners
@@ -179,44 +184,88 @@ export default function ViewReceipts() {
   const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 
   const printReceipt = (receipt) => {
-    const printable = window.open("", "", "width=400,height=600");
-    printable.document.write(`
-      <html><head><title>Receipt ${esc(receipt.billNo)}</title>
-      <style>
-        body { font-family: 'Courier New', monospace; width: 72mm; margin: 0 auto; padding: 8px; font-size: 12px; }
-        .center { text-align: center; }
-        .bold { font-weight: bold; }
-        .sep { border-top: 1px dashed #000; margin: 6px 0; }
-        table { width: 100%; border-collapse: collapse; }
-        td { padding: 2px 0; }
-        .right { text-align: right; }
-      </style>
-      </head>
-      <body>
-        <div class="center bold" style="font-size:14px;">KARUPATTI COFFEE</div>
-        <div class="center" style="font-size:10px;">Natural Karupatti Coffee Shop</div>
-        <div class="sep"></div>
-        <div>Order: ${esc(receipt.billNo)}</div>
-        <div>Date: ${receipt.date} ${receipt.time || ""}</div>
-        <div>Payment: ${esc(receipt.paymentMethod)}</div>
-        <div>Table: ${receipt.tableNo || "01"}</div>
-        <div class="sep"></div>
-        <table>
-          <tr class="bold"><td>Item</td><td class="right">Qty</td><td class="right">Amt</td></tr>
-          ${receipt.order
-            .map(
-              (item) =>
-                `<tr><td>${esc(item.name)}</td><td class="right">${item.amount}</td><td class="right">${(item.price * item.amount).toFixed(2)}</td></tr>`
-            )
-            .join("")}
-        </table>
-        <div class="sep"></div>
-        <div class="bold right" style="font-size:14px;">Total: Rs. ${receipt.grandTotal.toFixed(2)}</div>
-        <div class="sep"></div>
-        <div class="center bold">Thank You! Visit Again</div>
-      </body></html>`);
-    printable.document.close();
-    printable.print();
+    const s = shopSettings;
+    const shopName = s.shopName || "NELLAI KARUPATTI COFFEE";
+    const shopTagline = s.shopTagline || "";
+    const shopAddress = s.shopAddress || "";
+    const shopCity = s.shopCity || "";
+    const shopPhone = s.shopPhone || "";
+    const gstNumber = s.gstNumber || "";
+    const fssaiNumber = s.fssaiNumber || "";
+    const footer = s.receiptFooter || "Thank You! Visit Again";
+
+    const items = receipt.order || [];
+    const itemRows = items.map((item) => {
+      const qty = item.amount || item.quantity || item.qty || 1;
+      const amt = ((item.price || 0) * qty).toFixed(2);
+      const name = esc(item.name.length > 22 ? item.name.slice(0, 22) : item.name);
+      return `<tr><td style="text-align:left">${name}</td><td style="text-align:center">${qty}</td><td style="text-align:right">${item.price}</td><td style="text-align:right">${amt}</td></tr>`;
+    }).join("");
+
+    const disc = receipt.discount > 0 ? `<tr><td colspan="3" style="text-align:left">Discount</td><td style="text-align:right">-₹${receipt.discount.toFixed(2)}</td></tr>` : "";
+    const grandTotal = receipt.grandTotal || receipt.total || 0;
+    const subtotal = receipt.total || receipt.grandTotal || 0;
+    const billDate = receipt.date || new Date().toLocaleDateString("en-IN");
+    const billTime = receipt.time || "";
+
+    const html = `<!DOCTYPE html><html><head><title>Bill</title>
+<style>
+  @page { size: 80mm auto; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Courier New', monospace; font-size: 12px; width: 72mm; margin: 0 auto; padding: 4mm; color: #000; }
+  .center { text-align: center; }
+  .bold { font-weight: bold; }
+  .sep { border-top: 1px dashed #000; margin: 4px 0; }
+  .sep2 { border-top: 2px solid #000; margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 1px 0; vertical-align: top; }
+  .right { text-align: right; }
+  .small { font-size: 10px; }
+  .big { font-size: 16px; font-weight: bold; }
+</style></head><body>
+  <div class="center bold" style="font-size:14px;letter-spacing:1px;">${esc(shopName)}</div>
+  ${shopTagline ? `<div class="center small">${esc(shopTagline)}</div>` : ""}
+  ${shopAddress ? `<div class="center small">${esc(shopAddress)}</div>` : ""}
+  ${shopCity ? `<div class="center small">${esc(shopCity)}</div>` : ""}
+  ${shopPhone ? `<div class="center small">Ph: ${esc(shopPhone)}</div>` : ""}
+  ${gstNumber ? `<div class="center small">GSTIN: ${esc(gstNumber)}</div>` : ""}
+  ${fssaiNumber ? `<div class="center small">FSSAI: ${esc(fssaiNumber)}</div>` : ""}
+  <div class="sep2"></div>
+  <div class="center bold">BILL</div>
+  <div class="sep"></div>
+  <table>
+    <tr><td>Bill No: ${esc(receipt.billNo || receipt.orderNumber || "—")}</td><td class="right">Date: ${billDate}</td></tr>
+    <tr><td>Payment: ${esc((receipt.paymentMethod || "cash").toUpperCase())}</td><td class="right">Time: ${billTime}</td></tr>
+    <tr><td>Table: ${receipt.tableNo || "01"}</td><td class="right"></td></tr>
+  </table>
+  <div class="sep"></div>
+  <table>
+    <tr class="bold"><td style="text-align:left">Item</td><td style="text-align:center">Qty</td><td style="text-align:right">Rate</td><td style="text-align:right">Amt</td></tr>
+  </table>
+  <div class="sep"></div>
+  <table>${itemRows}</table>
+  <div class="sep"></div>
+  <table>
+    <tr><td colspan="3" style="text-align:left">Subtotal</td><td style="text-align:right">₹${subtotal.toFixed(2)}</td></tr>
+    ${disc}
+  </table>
+  <div class="sep2"></div>
+  <table><tr class="big"><td>TOTAL</td><td style="text-align:right">₹${grandTotal.toFixed(2)}</td></tr></table>
+  <div class="sep2"></div>
+  <div class="center" style="margin-top:6px;">
+    <div class="bold">${esc(footer)}</div>
+  </div>
+</body></html>`;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:none;";
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 3000);
   };
 
   const addItemToEditOrder = (item) => {

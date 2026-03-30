@@ -177,9 +177,12 @@ export default function ReceiptPage() {
   }
 
   const shopName = receipt.settings?.shopName || "NELLAI KARUPATTI COFFEE";
+  const shopTagline = receipt.settings?.shopTagline || "";
   const shopAddress = receipt.settings?.shopAddress || "";
+  const shopCity = receipt.settings?.shopCity || "";
   const shopPhone = receipt.settings?.shopPhone || "";
   const gstNumber = receipt.settings?.gstNumber || "";
+  const fssaiNumber = receipt.settings?.fssaiNumber || "";
   const receiptFooter = receipt.settings?.receiptFooter || "Thank You! Visit Again";
   const items = receipt.items || receipt.order || [];
   const grandTotal = receipt.grandTotal || receipt.total || 0;
@@ -200,11 +203,12 @@ export default function ReceiptPage() {
           </div>
 
           <div className="text-center text-[10px] sm:text-xs leading-tight px-4 pt-2 pb-1.5 text-coffee-light">
+            {shopTagline && <p>{shopTagline}</p>}
             {shopAddress && <p>{shopAddress}</p>}
-            <p>
-              {shopPhone && `Ph: ${shopPhone}`}
-              {gstNumber && ` | GSTIN: ${gstNumber}`}
-            </p>
+            {shopCity && <p>{shopCity}</p>}
+            {shopPhone && <p>Ph: {shopPhone}</p>}
+            {gstNumber && <p>GSTIN: {gstNumber}</p>}
+            {fssaiNumber && <p>FSSAI: {fssaiNumber}</p>}
           </div>
 
           <div className="border-t border-dashed border-coffee-light mx-3" />
