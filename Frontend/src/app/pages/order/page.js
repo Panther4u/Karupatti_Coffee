@@ -118,7 +118,9 @@ export default function OrderPage() {
   // Shop settings (tax config, etc.)
   const [shopSettings, setShopSettings] = useState({
     taxEnabled: false, cgstRate: 2.5, sgstRate: 2.5, inclusiveTax: true,
-    shopName: "Karupatti Coffee", gstNumber: "", roundOff: true,
+    shopName: "NELLAI KARUPATTI COFFEE", shopTagline: "", shopAddress: "", shopCity: "",
+    shopPhone: "", gstNumber: "", fssaiNumber: "", receiptFooter: "Thank You! Visit Again",
+    roundOff: true,
   });
 
   // Tables & Shifts
@@ -292,11 +294,13 @@ export default function OrderPage() {
   .small { font-size: 10px; }
   .big { font-size: 16px; font-weight: bold; }
 </style></head><body>
-  <div class="center bold" style="font-size:14px;letter-spacing:1px;">KARUPATTI COFFEE</div>
-  <div class="center small">Natural Karupatti Coffee Shop</div>
-  <div class="center small">North Pradakshanam Road, Karur</div>
-  <div class="center small">Tamil Nadu | Ph: 7010452495</div>
-  <div class="center small">GSTIN: 33GGTPS6619J1ZJ</div>
+  <div class="center bold" style="font-size:14px;letter-spacing:1px;">${esc(shopSettings.shopName || "NELLAI KARUPATTI COFFEE")}</div>
+  ${shopSettings.shopTagline ? `<div class="center small">${esc(shopSettings.shopTagline)}</div>` : ""}
+  ${shopSettings.shopAddress ? `<div class="center small">${esc(shopSettings.shopAddress)}</div>` : ""}
+  ${shopSettings.shopCity ? `<div class="center small">${esc(shopSettings.shopCity)}</div>` : ""}
+  ${shopSettings.shopPhone ? `<div class="center small">Ph: ${esc(shopSettings.shopPhone)}</div>` : ""}
+  ${shopSettings.gstNumber ? `<div class="center small">GSTIN: ${esc(shopSettings.gstNumber)}</div>` : ""}
+  ${shopSettings.fssaiNumber ? `<div class="center small">FSSAI: ${esc(shopSettings.fssaiNumber)}</div>` : ""}
   <div class="sep2"></div>
   <div class="center bold">BILL</div>
   <div class="sep"></div>
@@ -322,7 +326,7 @@ export default function OrderPage() {
   <table><tr class="big"><td>TOTAL</td><td style="text-align:right">₹${data.grandTotal?.toFixed(2) || "0.00"}</td></tr></table>
   <div class="sep2"></div>
   <div class="center" style="margin-top:6px;">
-    <div class="bold">Thank You! Visit Again ☕</div>
+    <div class="bold">${esc(shopSettings.receiptFooter || "Thank You! Visit Again")} ☕</div>
   </div>
 </body></html>`;
 
@@ -2109,13 +2113,15 @@ function SettingsPopup({ onClose, onSave }) {
           <div className="p-5 space-y-5">
             {/* Shop Info */}
             <div>
-              <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Shop Info</h3>
+              <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Shop Info (Bill Header)</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Name</label><input value={settings.shopName || ""} onChange={(e) => handleChange("shopName", e.target.value)} className={inputCls} /></div>
-                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Phone</label><input value={settings.shopPhone || ""} onChange={(e) => handleChange("shopPhone", e.target.value)} className={inputCls} /></div>
-                <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Address</label><input value={settings.shopAddress || ""} onChange={(e) => handleChange("shopAddress", e.target.value)} className={inputCls} /></div>
-                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">GSTIN</label><input value={settings.gstNumber || ""} onChange={(e) => handleChange("gstNumber", e.target.value)} className={inputCls} /></div>
-                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">FSSAI</label><input value={settings.fssaiNumber || ""} onChange={(e) => handleChange("fssaiNumber", e.target.value)} className={inputCls} /></div>
+                <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Shop Name</label><input value={settings.shopName || ""} onChange={(e) => handleChange("shopName", e.target.value)} className={inputCls} placeholder="NELLAI KARUPATTI COFFEE" /></div>
+                <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Tagline (optional)</label><input value={settings.shopTagline || ""} onChange={(e) => handleChange("shopTagline", e.target.value)} className={inputCls} placeholder="e.g. Since 2020" /></div>
+                <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Address Line 1</label><input value={settings.shopAddress || ""} onChange={(e) => handleChange("shopAddress", e.target.value)} className={inputCls} placeholder="Street, Area" /></div>
+                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">City / State</label><input value={settings.shopCity || ""} onChange={(e) => handleChange("shopCity", e.target.value)} className={inputCls} placeholder="Tamil Nadu" /></div>
+                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Phone</label><input value={settings.shopPhone || ""} onChange={(e) => handleChange("shopPhone", e.target.value)} className={inputCls} placeholder="9876543210" /></div>
+                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">GSTIN</label><input value={settings.gstNumber || ""} onChange={(e) => handleChange("gstNumber", e.target.value)} className={inputCls} placeholder="33XXXXX" /></div>
+                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">FSSAI</label><input value={settings.fssaiNumber || ""} onChange={(e) => handleChange("fssaiNumber", e.target.value)} className={inputCls} placeholder="FSSAI number" /></div>
               </div>
             </div>
 

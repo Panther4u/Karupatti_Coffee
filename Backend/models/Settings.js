@@ -2,8 +2,10 @@ const mongoose = require("mongoose");
 
 const settingsSchema = new mongoose.Schema(
   {
-    shopName: { type: String, default: "" },
+    shopName: { type: String, default: "NELLAI KARUPATTI COFFEE" },
+    shopTagline: { type: String, default: "" },
     shopAddress: { type: String, default: "" },
+    shopCity: { type: String, default: "" },
     shopPhone: { type: String, default: "" },
     shopEmail: { type: String, default: "" },
     gstNumber: { type: String, default: "" },
