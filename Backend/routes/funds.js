@@ -137,7 +137,7 @@ router.post("/pots", verifyToken, roleCheck("admin", "manager"), asyncHandler(as
 }));
 
 // DELETE /api/funds/pots/:id — Delete a fund pot
-router.delete("/pots/:id", verifyToken, roleCheck("admin"), asyncHandler(async (req, res) => {
+router.delete("/pots/:id", verifyToken, roleCheck("admin", "manager"), asyncHandler(async (req, res) => {
   const pot = await FundPot.findByIdAndDelete(req.params.id);
   if (!pot) {
     return res.status(404).json({ success: false, error: "Fund pot not found" });
