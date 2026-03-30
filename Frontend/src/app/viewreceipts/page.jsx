@@ -40,6 +40,7 @@ export default function ViewReceipts() {
   const editRef = useRef(null);
 
   const [authChecked, setAuthChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [receipts, setReceipts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -60,7 +61,12 @@ export default function ViewReceipts() {
   }, []);
 
   useEffect(() => {
-    offlineAuthCheck(authAPI, router).then((user) => { if (user) setAuthChecked(true); });
+    offlineAuthCheck(authAPI, router).then((user) => {
+      if (user) {
+        setCurrentUser({ username: user.username || localStorage.getItem("userName") || "", role: user.role || localStorage.getItem("userRole") || "cashier" });
+        setAuthChecked(true);
+      }
+    });
   }, [router]);
 
   useEffect(() => {
@@ -238,7 +244,7 @@ export default function ViewReceipts() {
   <table>
     <tr><td>Bill No: ${esc(receipt.billNo || receipt.orderNumber || "—")}</td><td class="right">Date: ${billDate}</td></tr>
     <tr><td>Payment: ${esc((receipt.paymentMethod || "cash").toUpperCase())}</td><td class="right">Time: ${billTime}</td></tr>
-    <tr><td>Table: ${receipt.tableNo || "01"}</td><td class="right"></td></tr>
+    <tr><td>Table: ${receipt.tableNo || "01"}</td><td class="right">${receipt.createdBy?.username ? `Staff: ${esc(receipt.createdBy.username)}` : ""}</td></tr>
   </table>
   <div class="sep"></div>
   <table>
@@ -363,7 +369,14 @@ export default function ViewReceipts() {
               {/* Receipt info row */}
               <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
                 <span className="capitalize">{isEditing ? editPaymentMethod : (receipt.paymentMethod || "cash")}</span>
-                <span>Table: {receipt.tableNo || "01"}</span>
+                <div className="flex items-center gap-2">
+                  {receipt.createdBy?.username && (
+                    <span className="bg-coffee/10 text-coffee px-1.5 py-0.5 rounded text-[10px] font-semibold capitalize">
+                      {receipt.createdBy.username} ({receipt.createdBy.role})
+                    </span>
+                  )}
+                  <span>Table: {receipt.tableNo || "01"}</span>
+                </div>
               </div>
 
               {/* Items list */}

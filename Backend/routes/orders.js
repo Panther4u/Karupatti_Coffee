@@ -47,6 +47,10 @@ router.post(
       tableNo: tableNo || "01",
       date: ist.toISOString().split("T")[0],
       time: now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }),
+      createdBy: {
+        username: req.user?.username || "",
+        role: req.user?.role || "",
+      },
     });
 
     emitEvent("new-order", {
@@ -59,6 +63,7 @@ router.post(
       date: newOrder.date,
       time: newOrder.time,
       status: newOrder.status,
+      createdBy: newOrder.createdBy,
       createdAt: newOrder.createdAt,
     });
 
@@ -76,6 +81,7 @@ router.post(
 );
 
 // GET /api/orders — list orders (auth required)
+// Non-admin users see only their own orders; admin/manager see all
 router.get(
   "/",
   verifyToken,
@@ -84,6 +90,12 @@ router.get(
     const filter = {};
     if (date) filter.date = String(date);
     if (status) filter.status = String(status);
+
+    // Non-admin/manager users only see their own orders
+    const role = req.user?.role;
+    if (role !== "admin" && role !== "manager") {
+      filter["createdBy.username"] = req.user?.username || "";
+    }
 
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.min(Math.max(1, Number(limit)), 500);

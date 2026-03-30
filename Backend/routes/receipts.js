@@ -37,6 +37,7 @@ router.get(
       paymentMethod: order.paymentMethod,
       tableNo: order.tableNo,
       status: order.status,
+      createdBy: order.createdBy || {},
       settings: {
         shopName: settings.shopName,
         shopTagline: settings.shopTagline,

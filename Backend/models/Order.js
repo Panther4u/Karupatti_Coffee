@@ -26,6 +26,10 @@ const orderSchema = new mongoose.Schema(
     time: { type: String },
     status: { type: String, enum: ["completed", "cancelled"], default: "completed" },
     receiptPrinted: { type: Boolean, default: false },
+    createdBy: {
+      username: { type: String, default: "" },
+      role: { type: String, default: "" },
+    },
   },
   { timestamps: true }
 );
