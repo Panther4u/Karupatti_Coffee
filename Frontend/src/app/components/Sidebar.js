@@ -23,19 +23,19 @@ import { BiSolidCoffeeBean } from "react-icons/bi";
 
 // roles: owner/admin = all, manager = most, cashier = order+receipts, kitchen = kitchen only
 const navItems = [
-  { id: 0, label: "New Order", icon: HiShoppingCart, section: "main", roles: ["owner","admin","manager","cashier"] },
+  { id: 0, label: "New Order", icon: HiShoppingCart, section: "main", roles: ["owner","admin","manager","cashier","staff"] },
   { id: "dashboard", label: "Dashboard", icon: HiChartPie, section: "main", roles: ["owner","admin","manager"] },
-  { id: "receipts", label: "Receipts", icon: HiReceiptRefund, section: "main", roles: ["owner","admin","manager","cashier"] },
-  { id: "kitchen", label: "Kitchen", icon: HiFire, section: "main", roles: ["owner","admin","manager","kitchen"] },
+  { id: "receipts", label: "Receipts", icon: HiReceiptRefund, section: "main", roles: ["owner","admin","manager","cashier","staff"] },
+  { id: "kitchen", label: "Kitchen", icon: HiFire, section: "main", roles: ["owner","admin","manager","kitchen","staff"] },
   { id: 3, label: "Products", icon: HiViewGrid, section: "manage", roles: ["owner","admin","manager"] },
   { id: 4, label: "Sales Summary", icon: HiCurrencyRupee, section: "manage", roles: ["owner","admin","manager"] },
   { id: 5, label: "Daily Report", icon: HiDocumentReport, section: "manage", roles: ["owner","admin","manager"] },
   { id: 6, label: "Expenses", icon: HiCash, section: "manage", roles: ["owner","admin","manager"] },
-  { id: "cashbook", label: "Cash Book", icon: HiBookOpen, section: "manage", roles: ["owner", "admin", "manager", "cashier"] },
+  { id: "cashbook", label: "Cash Book", icon: HiBookOpen, section: "manage", roles: ["owner","admin","manager","cashier"] },
   { id: "reports", label: "Reports", icon: HiChartBar, section: "manage", roles: ["owner","admin","manager"] },
   { id: "inventory", label: "Inventory", icon: HiArchive, section: "manage", roles: ["owner","admin","manager"] },
-  { id: "tables", label: "Tables", icon: HiViewBoards, section: "manage", roles: ["owner","admin","manager","cashier"] },
-  { id: "shifts", label: "Shifts", icon: HiClock, section: "manage", roles: ["owner","admin","manager","cashier"] },
+  { id: "tables", label: "Tables", icon: HiViewBoards, section: "manage", roles: ["owner","admin","manager","cashier","staff"] },
+  { id: "shifts", label: "Shifts", icon: HiClock, section: "manage", roles: ["owner","admin","manager","cashier","staff"] },
   { id: "settings", label: "Settings", icon: HiCog, section: "manage", roles: ["owner","admin"] },
 ];
 

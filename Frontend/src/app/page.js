@@ -37,19 +37,8 @@ export default function Home() {
   }, [router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const navigateByRole = useCallback((role) => {
-    switch (role) {
-      case "admin":
-      case "manager":
-        router.replace("/dashboard");
-        break;
-      case "staff":
-        router.replace("/kitchen");
-        break;
-      case "cashier":
-      default:
-        router.replace("/pages/order");
-        break;
-    }
+    // All roles open POS terminal directly
+    router.replace("/pages/order");
   }, [router]);
 
   // Auto-login when PIN reaches correct length
