@@ -869,17 +869,8 @@ export default function OrderPage() {
                   <p className="text-[9px] text-gray-400 mb-1">Arrow keys to select, Enter to open, 1-9 quick select</p>
                   <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-4 gap-1.5 sm:gap-2">
                     {categoryGrid.map((cat, idx) => (
-                      <button
-                        key={cat.name}
-                        onClick={() => { setCurrentCategory(idx); setSelectedIndex(0); }}
-                        className={`flex flex-col items-center justify-center p-2.5 sm:p-3 bg-white border-2 rounded-lg hover:shadow-md transition ${
-                          selectedIndex === idx ? "border-coffee ring-2 ring-coffee/30 shadow-md" : "border-gray-200 hover:border-gray-300"
-                        }`}
-                      >
-                        <span className="text-xl sm:text-2xl">{cat.emoji}</span>
-                        <span className="font-semibold text-[10px] sm:text-xs text-gray-900 mt-1 text-center leading-tight">{cat.name}</span>
-                        <span className="text-[9px] sm:text-[10px] text-gray-400 mt-0.5">{cat.count}</span>
-                      </button>
+                      <CategoryButton key={cat.name} cat={cat} idx={idx} isSelected={selectedIndex === idx}
+                        onClick={() => { setCurrentCategory(idx); setSelectedIndex(0); }} />
                     ))}
                   </div>
                 </div>
@@ -1161,6 +1152,7 @@ function BillArea({
           billItems.map((item, idx) => (
             <div
               key={item.id}
+              ref={(el) => { if (billFocused && selectedBillIndex === idx && el) el.scrollIntoView({ behavior: "smooth", block: "nearest" }); }}
               className={`p-2 rounded-lg border transition ${
                 billFocused && selectedBillIndex === idx
                   ? "bg-coffee/10 border-coffee ring-2 ring-coffee/30 shadow-md"
@@ -1972,6 +1964,26 @@ function MobileBillPopup({
 }
 
 // ===== SEARCH RESULTS — show max 10, then "Show more" =====
+// ===== CATEGORY BUTTON — auto-scrolls when selected via keyboard =====
+function CategoryButton({ cat, idx, isSelected, onClick }) {
+  const btnRef = useRef(null);
+  useEffect(() => {
+    if (isSelected && btnRef.current) {
+      btnRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [isSelected]);
+  return (
+    <button ref={btnRef} onClick={onClick}
+      className={`flex flex-col items-center justify-center p-2.5 sm:p-3 bg-white border-2 rounded-lg hover:shadow-md transition ${
+        isSelected ? "border-coffee ring-2 ring-coffee/30 shadow-md" : "border-gray-200 hover:border-gray-300"
+      }`}>
+      <span className="text-xl sm:text-2xl">{cat.emoji}</span>
+      <span className="font-semibold text-[10px] sm:text-xs text-gray-900 mt-1 text-center leading-tight">{cat.name}</span>
+      <span className="text-[9px] sm:text-[10px] text-gray-400 mt-0.5">{cat.count}</span>
+    </button>
+  );
+}
+
 function SearchResultsView({ filteredProducts, selectedIndex, selectProduct }) {
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? filteredProducts : filteredProducts.slice(0, 10);
@@ -2015,8 +2027,18 @@ function ProductCard({ product, onClick, isSelected }) {
         : product.imageUrl)
     : null;
 
+  const cardRef = useRef(null);
+
+  // Auto-scroll into view when selected via keyboard
+  useEffect(() => {
+    if (isSelected && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [isSelected]);
+
   return (
     <button
+      ref={cardRef}
       onClick={onClick}
       className={`flex flex-col bg-white rounded-lg border overflow-hidden transition hover:shadow-md ${
         isSelected ? "border-coffee ring-2 ring-coffee shadow-md" : "border-gray-200 hover:border-gray-300"
