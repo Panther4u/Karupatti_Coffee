@@ -26,6 +26,7 @@ const dailyCashBookSchema = new mongoose.Schema({
   },
   manualUpiAmount: { type: Number, default: null },
   manualCardAmount: { type: Number, default: null },
+  manualCashAmount: { type: Number, default: null },
 }, { timestamps: true });
 
 dailyCashBookSchema.index({ date: -1 });

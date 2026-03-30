@@ -136,7 +136,8 @@ router.get("/today", verifyToken, asyncHandler(async (req, res) => {
   }
 
   const agg = await aggregateCashBook(dateStr);
-  const calculatedClosing = cashbook.openingCash + agg.cashSales.total + agg.cashIn.total - agg.cashOut.total - agg.purchases.total;
+  const effectiveCash = cashbook.manualCashAmount != null ? cashbook.manualCashAmount : agg.cashSales.total;
+  const calculatedClosing = cashbook.openingCash + effectiveCash + agg.cashIn.total - agg.cashOut.total - agg.purchases.total;
 
   res.json({
     success: true,
@@ -188,7 +189,8 @@ router.get("/:date", verifyToken, asyncHandler(async (req, res) => {
   }
 
   const agg = await aggregateCashBook(dateStr);
-  const calculatedClosing = cashbook.openingCash + agg.cashSales.total + agg.cashIn.total - agg.cashOut.total - agg.purchases.total;
+  const effectiveCash = cashbook.manualCashAmount != null ? cashbook.manualCashAmount : agg.cashSales.total;
+  const calculatedClosing = cashbook.openingCash + effectiveCash + agg.cashIn.total - agg.cashOut.total - agg.purchases.total;
 
   res.json({
     success: true,
@@ -207,6 +209,7 @@ router.put("/:date", verifyToken, roleCheck("admin", "manager"), asyncHandler(as
   if (notes !== undefined) cashbook.notes = notes;
   if (req.body.manualUpiAmount !== undefined) cashbook.manualUpiAmount = req.body.manualUpiAmount;
   if (req.body.manualCardAmount !== undefined) cashbook.manualCardAmount = req.body.manualCardAmount;
+  if (req.body.manualCashAmount !== undefined) cashbook.manualCashAmount = req.body.manualCashAmount;
   if (req.body.denomination !== undefined) cashbook.denomination = req.body.denomination;
   await cashbook.save();
 

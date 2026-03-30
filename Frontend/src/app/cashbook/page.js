@@ -46,7 +46,9 @@ export default function CashBookPage() {
   const [editingOpening, setEditingOpening] = useState(false);
   const [openingInput, setOpeningInput] = useState("");
 
-  // Edit UPI/Card amounts manually
+  // Edit Cash/UPI/Card amounts manually
+  const [editingCash, setEditingCash] = useState(false);
+  const [cashInput, setCashInput] = useState("");
   const [editingUpi, setEditingUpi] = useState(false);
   const [upiInput, setUpiInput] = useState("");
   const [editingCard, setEditingCard] = useState(false);
@@ -196,6 +198,19 @@ export default function CashBookPage() {
     }
   };
 
+  // Update manual Cash amount
+  const handleUpdateCash = async () => {
+    const amount = parseFloat(cashInput);
+    if (isNaN(amount) || amount < 0) return;
+    try {
+      await cashbookAPI.update(selectedDate, { manualCashAmount: amount });
+      setEditingCash(false);
+      fetchData();
+    } catch (err) {
+      alert(err.message || "Failed to update Cash amount");
+    }
+  };
+
   // Update manual UPI amount
   const handleUpdateUpi = async () => {
     const amount = parseFloat(upiInput);
@@ -258,14 +273,17 @@ export default function CashBookPage() {
   const isToday = selectedDate === getISTToday();
   const isOpen = data?.status === "open";
 
+  const cashSalesAmt = data?.cashSales?.total || 0;
   const upiSalesAmt = data?.upiSales?.total || 0;
   const cardSalesAmt = data?.cardSales?.total || 0;
   const otherSalesAmt = data?.otherSales?.total || 0;
+  const manualCash = data?.manualCashAmount;
   const manualUpi = data?.manualUpiAmount;
   const manualCard = data?.manualCardAmount;
+  const displayCash = manualCash != null ? manualCash : cashSalesAmt;
   const displayUpi = manualUpi != null ? manualUpi : upiSalesAmt;
   const displayCard = manualCard != null ? manualCard : cardSalesAmt;
-  const totalAllSales = (data?.cashSales?.total || 0) + upiSalesAmt + cardSalesAmt + otherSalesAmt;
+  const totalAllSales = displayCash + upiSalesAmt + cardSalesAmt + otherSalesAmt;
 
   return (
     <div className="min-h-[100dvh] bg-gray-50">
@@ -339,13 +357,32 @@ export default function CashBookPage() {
                   <HiCreditCard className="w-4 h-4" /> Sales by Payment Method
                 </p>
                 <div className="space-y-2">
-                  {/* Cash Sales */}
+                  {/* Cash Sales - editable */}
                   <div className="flex justify-between items-center bg-white rounded-lg p-3 border border-blue-100">
                     <div>
                       <p className="text-sm font-semibold text-gray-800">Cash Sales</p>
-                      <p className="text-xs text-gray-400">{data.cashSales?.count || 0} orders</p>
+                      <p className="text-xs text-gray-400">{data.cashSales?.count || 0} orders{manualCash != null && " (manually edited)"}</p>
                     </div>
-                    <p className="text-lg font-bold text-green-600">{"\u20B9"}{(data.cashSales?.total || 0).toLocaleString("en-IN")}</p>
+                    <div className="flex items-center gap-2">
+                      {editingCash ? (
+                        <>
+                          <input type="number" value={cashInput} onChange={(e) => setCashInput(e.target.value)}
+                            className="w-24 px-2 py-1 border rounded text-sm font-bold text-right" autoFocus />
+                          <button onClick={handleUpdateCash} className="text-green-600 font-bold text-xs">Save</button>
+                          <button onClick={() => setEditingCash(false)} className="text-gray-400 text-xs">✕</button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-lg font-bold text-green-600">{"\u20B9"}{displayCash.toLocaleString("en-IN")}</p>
+                          {isOpen && (
+                            <button onClick={() => { setCashInput(String(displayCash)); setEditingCash(true); }}
+                              className="p-1 hover:bg-green-50 rounded">
+                              <HiPencil className="w-3.5 h-3.5 text-green-400" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* UPI Sales - editable */}
@@ -524,7 +561,7 @@ export default function CashBookPage() {
               <div className="bg-coffee-dark text-cream rounded-xl p-5">
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="opacity-70">Opening Cash</span><span className="font-bold">{"\u20B9"}{(data.openingCash || 0).toLocaleString("en-IN")}</span></div>
-                  <div className="flex justify-between text-green-300"><span>+ Cash Sales</span><span className="font-bold">{"\u20B9"}{(data.cashSales?.total || 0).toLocaleString("en-IN")}</span></div>
+                  <div className="flex justify-between text-green-300"><span>+ Cash Sales</span><span className="font-bold">{"\u20B9"}{displayCash.toLocaleString("en-IN")}</span></div>
                   <div className="flex justify-between text-blue-300"><span>+ UPI Sales</span><span className="font-bold">{"\u20B9"}{displayUpi.toLocaleString("en-IN")}</span></div>
                   <div className="flex justify-between text-purple-300"><span>+ Card Sales</span><span className="font-bold">{"\u20B9"}{displayCard.toLocaleString("en-IN")}</span></div>
                   {otherSalesAmt > 0 && <div className="flex justify-between text-gray-300"><span>+ Other Sales</span><span className="font-bold">{"\u20B9"}{otherSalesAmt.toLocaleString("en-IN")}</span></div>}
