@@ -2610,6 +2610,7 @@ function ProductsPopup({ onClose, onProductsChanged }) {
   const [msg, setMsg] = useState("");
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("");
+  const formRef = useRef(null);
 
   const cats = {1:"Tea",2:"Coffee",3:"Dairy Products",4:"Snacks",5:"Evening Special",6:"Fresh Juice",7:"Cool Drinks",8:"Ice Cream",9:"Karupatti Ice Cream",10:"Karupatti Snacks",11:"Other Snacks",12:"Biscuits & Cakes",13:"Parcel"};
 
@@ -2634,7 +2635,8 @@ function ProductsPopup({ onClose, onProductsChanged }) {
     } catch (err) { setMsg(err.message || "Error saving"); }
   };
 
-  const handleDelete = async (id, name) => {
+  const handleDelete = async (id, name, e) => {
+    e.stopPropagation();
     if (!confirm(`Delete "${name}"?`)) return;
     try { await productsAPI.delete(id); fetchItems(); if (onProductsChanged) onProductsChanged(); setMsg("Deleted"); setTimeout(() => setMsg(""), 2000); }
     catch { setMsg("Delete failed"); }
@@ -2643,6 +2645,7 @@ function ProductsPopup({ onClose, onProductsChanged }) {
   const startEdit = (p) => {
     setEditId(p.id); setForm({ name: p.name, price: p.price, purchaseRate: p.purchaseRate || 0, mrp: p.mrp || 0, type: p.type, description: p.description || "", imageUrl: p.imageUrl || "", isAvailable: p.isAvailable !== false });
     setShowForm(true);
+    setTimeout(() => { formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 100);
   };
 
   const filtered = items.filter((i) => {
@@ -2654,88 +2657,99 @@ function ProductsPopup({ onClose, onProductsChanged }) {
   const ic = "w-full border border-gray-200 px-3 py-2 h-9 rounded-lg text-sm focus:ring-2 focus:ring-coffee outline-none";
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4" onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold">Products ({items.length})</h2>
-            <button onClick={() => { setShowForm(!showForm); if (showForm) resetForm(); }}
-              className={`text-xs font-bold px-3 py-1.5 rounded-lg ${showForm ? "bg-gray-200 text-gray-700" : "bg-coffee text-white"}`}>
-              {showForm ? "Cancel" : "+ Add Product"}
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            {msg && <span className={`text-xs font-bold ${msg.includes("!") ? "text-green-600" : "text-red-500"}`}>{msg}</span>}
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><HiX className="w-5 h-5" /></button>
-          </div>
-        </div>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4" onClick={onClose} onKeyDown={(e) => { if (e.key === "Escape") onClose(); }} data-popup="products">
+      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
 
-        <div className="flex-1 overflow-y-auto p-4">
-          {/* Add/Edit Form */}
+        {/* Sticky Header + Search + Form */}
+        <div className="flex-shrink-0 bg-white z-10">
+          {/* Title bar */}
+          <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-bold text-gray-900">Products ({items.length})</h2>
+              <button onClick={() => { setShowForm(!showForm); if (showForm) resetForm(); }}
+                className={`text-xs font-bold px-3 py-1.5 rounded-lg transition ${showForm ? "bg-gray-200 text-gray-700" : "bg-coffee text-white hover:bg-coffee-dark"}`}>
+                {showForm ? "✕ Cancel" : "+ Add Product"}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              {msg && <span className={`text-xs font-bold ${msg.includes("!") || msg === "Deleted" ? "text-green-600" : "text-red-500"}`}>{msg}</span>}
+              <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition"><HiX className="w-5 h-5 text-gray-400" /></button>
+            </div>
+          </div>
+
+          {/* Add/Edit Form — sticky below header */}
           {showForm && (
-            <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Product Name *</label>
-                  <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Filter Coffee" className={ic} /></div>
+            <div ref={formRef} className="border-b border-gray-200 bg-amber-50 px-4 py-3 space-y-2">
+              <p className="text-xs font-bold text-coffee uppercase">{editId ? "Edit Product" : "Add New Product"}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="col-span-2"><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Product Name *</label>
+                  <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Filter Coffee" className={ic} autoFocus /></div>
                 <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Category *</label>
                   <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className={ic}>
                     <option value="">Select</option>
                     {Object.entries(cats).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select></div>
-                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Selling Price (₹) *</label>
+                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Sell Price (₹) *</label>
                   <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="50" className={ic} /></div>
-                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Purchase/Cost Price (₹)</label>
+                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Cost Price (₹)</label>
                   <input type="number" value={form.purchaseRate} onChange={(e) => setForm({ ...form, purchaseRate: e.target.value })} placeholder="20" className={ic} /></div>
                 <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">MRP (₹)</label>
                   <input type="number" value={form.mrp} onChange={(e) => setForm({ ...form, mrp: e.target.value })} placeholder="60" className={ic} /></div>
-                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Description</label>
-                  <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Short description" className={ic} /></div>
-                <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Image URL</label>
+                <div className="col-span-2"><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Image URL</label>
                   <div className="flex gap-2 items-center">
                     <input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://..." className={`${ic} flex-1`} />
                     {form.imageUrl && <img src={form.imageUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 flex-shrink-0" onError={(e) => { e.target.style.display = "none"; }} />}
                   </div></div>
-                <div className="flex items-center gap-2 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase">Available</label>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <button type="button" onClick={() => setForm({ ...form, isAvailable: !form.isAvailable })}
                     className={`w-10 h-5 rounded-full transition relative ${form.isAvailable ? "bg-green-500" : "bg-gray-300"}`}>
                     <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition ${form.isAvailable ? "left-5" : "left-0.5"}`} />
                   </button>
                   <span className={`text-xs font-semibold ${form.isAvailable ? "text-green-600" : "text-red-500"}`}>{form.isAvailable ? "Active" : "Hidden"}</span>
                 </div>
+                {form.price && form.purchaseRate ? (
+                  <span className={`text-xs font-bold ${Number(form.price) - Number(form.purchaseRate) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    Profit: ₹{(Number(form.price) - Number(form.purchaseRate)).toFixed(0)} ({((Number(form.price) - Number(form.purchaseRate)) / Number(form.price) * 100).toFixed(0)}%)
+                  </span>
+                ) : null}
+                <div className="flex-1" />
+                <button onClick={resetForm} className="px-3 h-8 text-xs font-bold text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition">Cancel</button>
+                <button onClick={handleSubmit} className="px-4 h-8 bg-coffee text-white rounded-lg text-xs font-bold hover:bg-coffee-dark transition">
+                  {editId ? "Update" : "Add Product"}
+                </button>
               </div>
-              {/* Profit preview */}
-              {form.price && form.purchaseRate && (
-                <div className={`p-2 rounded-lg text-xs font-bold text-center ${Number(form.price) - Number(form.purchaseRate) >= 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
-                  Profit per item: ₹{(Number(form.price) - Number(form.purchaseRate)).toFixed(2)} ({((Number(form.price) - Number(form.purchaseRate)) / Number(form.price) * 100).toFixed(1)}% margin)
-                </div>
-              )}
-              <button onClick={handleSubmit} className="w-full h-9 bg-coffee text-white rounded-lg text-sm font-bold hover:bg-coffee-dark transition">
-                {editId ? "Update Product" : "Add Product"}
-              </button>
             </div>
           )}
 
-          {/* Search + Filter */}
-          <div className="flex gap-2 mb-3">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products..." className="flex-1 border border-gray-200 px-3 py-2 h-9 rounded-lg text-sm" />
-            <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)} className="border border-gray-200 px-2 py-2 h-9 rounded-lg text-xs">
-              <option value="">All Categories</option>
-              {Object.entries(cats).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          {/* Search + Filter — sticky */}
+          <div className="border-b border-gray-100 px-4 py-2 flex gap-2 bg-gray-50">
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products..."
+              className="flex-1 border border-gray-200 px-3 py-1.5 h-8 rounded-lg text-sm bg-white focus:ring-2 focus:ring-coffee outline-none" />
+            <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
+              className="border border-gray-200 px-2 py-1.5 h-8 rounded-lg text-xs bg-white">
+              <option value="">All ({items.length})</option>
+              {Object.entries(cats).map(([k, v]) => {
+                const cnt = items.filter((i) => i.type === Number(k)).length;
+                return cnt > 0 ? <option key={k} value={k}>{v} ({cnt})</option> : null;
+              })}
             </select>
           </div>
+        </div>
 
-          {/* Product List */}
+        {/* Scrollable Product List */}
+        <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="text-center py-8"><div className="w-8 h-8 border-4 border-coffee border-t-transparent rounded-full animate-spin mx-auto" /></div>
           ) : filtered.length === 0 ? (
             <p className="text-center text-gray-400 text-sm py-8">No products found</p>
           ) : (
-            <div className="space-y-1.5">
-              {/* Header */}
-              <div className="hidden sm:grid grid-cols-12 gap-2 px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase">
-                <div className="col-span-4">Product</div>
+            <div className="divide-y divide-gray-100">
+              {/* Column header */}
+              <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-1.5 text-[10px] font-bold text-gray-400 uppercase bg-gray-50 sticky top-0">
+                <div className="col-span-1"></div>
+                <div className="col-span-3">Product</div>
                 <div className="col-span-2">Category</div>
                 <div className="col-span-1 text-right">Cost</div>
                 <div className="col-span-1 text-right">Sell</div>
@@ -2745,9 +2759,22 @@ function ProductsPopup({ onClose, onProductsChanged }) {
               {filtered.map((p) => {
                 const profit = (p.price || 0) - (p.purchaseRate || 0);
                 const margin = p.price > 0 ? (profit / p.price * 100).toFixed(0) : 0;
+                const isEditing = editId === p.id;
+                const imgSrc = p.imageUrl ? (p.imageUrl.includes("imagekit.io") ? `${p.imageUrl}${p.imageUrl.includes("?") ? "&" : "?"}tr=w-60,h-60` : p.imageUrl) : null;
                 return (
-                  <div key={p.id} className="grid grid-cols-12 gap-2 items-center px-3 py-2 bg-white border border-gray-100 rounded-lg hover:border-gray-300 transition">
-                    <div className="col-span-12 sm:col-span-4 min-w-0 flex items-center gap-1.5">
+                  <div key={p.id} onClick={() => startEdit(p)}
+                    className={`grid grid-cols-12 gap-2 items-center px-4 py-2.5 cursor-pointer transition hover:bg-amber-50 ${isEditing ? "bg-amber-50 border-l-4 border-l-coffee" : ""}`}>
+                    {/* Thumbnail */}
+                    <div className="col-span-2 sm:col-span-1">
+                      <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                        {imgSrc ? (
+                          <img src={imgSrc} alt="" className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display = "none"; }} />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-300 text-sm">☕</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-span-10 sm:col-span-3 min-w-0 flex items-center gap-1.5">
                       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.isAvailable !== false ? "bg-green-500" : "bg-red-400"}`} />
                       <p className={`font-semibold text-sm truncate ${p.isAvailable !== false ? "text-gray-900" : "text-gray-400 line-through"}`}>{p.name}</p>
                     </div>
@@ -2762,8 +2789,8 @@ function ProductsPopup({ onClose, onProductsChanged }) {
                       </span>
                     </div>
                     <div className="col-span-2 sm:col-span-2 flex gap-1 justify-end">
-                      <button onClick={() => startEdit(p)} className="px-2 py-1 text-[10px] font-bold text-coffee bg-coffee/10 rounded hover:bg-coffee/20">Edit</button>
-                      <button onClick={() => handleDelete(p.id, p.name)} className="px-2 py-1 text-[10px] font-bold text-red-500 bg-red-50 rounded hover:bg-red-100">Del</button>
+                      <button onClick={(e) => { e.stopPropagation(); startEdit(p); }} className="px-2 py-1 text-[10px] font-bold text-coffee bg-coffee/10 rounded hover:bg-coffee/20 transition">Edit</button>
+                      <button onClick={(e) => handleDelete(p.id, p.name, e)} className="px-2 py-1 text-[10px] font-bold text-red-500 bg-red-50 rounded hover:bg-red-100 transition">Del</button>
                     </div>
                   </div>
                 );
