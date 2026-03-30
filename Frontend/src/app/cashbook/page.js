@@ -65,6 +65,14 @@ export default function CashBookPage() {
   const [selectedPot, setSelectedPot] = useState(null);
   const [fundsLoading, setFundsLoading] = useState(false);
 
+  // Add/Deposit/Delete fund dialogs
+  const [showAddFundDialog, setShowAddFundDialog] = useState(false);
+  const [addFundForm, setAddFundForm] = useState({ category: "", initialAmount: "" });
+  const [addingFund, setAddingFund] = useState(false);
+  const [showDepositDialog, setShowDepositDialog] = useState(false);
+  const [depositForm, setDepositForm] = useState({ category: "", amount: "", notes: "" });
+  const [depositing, setDepositing] = useState(false);
+
   // Dynamic expense categories
   const [expenseCats, setExpenseCats] = useState(DEFAULT_EXPENSE_CATS);
   const [newExpCat, setNewExpCat] = useState("");
@@ -669,10 +677,16 @@ export default function CashBookPage() {
                 </p>
               </div>
 
+              {/* Add Fund Button */}
+              <button onClick={() => { setAddFundForm({ category: "", initialAmount: "" }); setShowAddFundDialog(true); }}
+                className="w-full py-3 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 text-sm font-bold hover:bg-purple-50 flex items-center justify-center gap-1">
+                <HiPlus className="w-4 h-4" /> Add New Fund
+              </button>
+
               {/* Individual Pot Cards */}
               <div className="space-y-3">
                 {fundPots.length === 0 ? (
-                  <p className="text-center py-8 text-gray-400 text-sm">No fund pots configured. Go to Settings to add fixed daily expenses with &ldquo;Fund&rdquo; enabled.</p>
+                  <p className="text-center py-8 text-gray-400 text-sm">No fund pots yet. Tap &ldquo;Add New Fund&rdquo; to create one.</p>
                 ) : fundPots.map((pot) => (
                   <div key={pot._id} className={`bg-white border-2 rounded-xl p-4 transition ${selectedPot === pot.category ? "border-purple-400 shadow-md" : "border-gray-200"}`}>
                     <div className="flex items-center justify-between mb-3">
@@ -684,10 +698,26 @@ export default function CashBookPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-xl font-bold text-purple-700">{"\u20B9"}{(pot.balance || 0).toLocaleString("en-IN")}</p>
-                        <button onClick={() => { setPayoutForm({ category: pot.category, amount: "", notes: "" }); setShowPayoutDialog(true); }}
-                          className="text-[10px] bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-bold hover:bg-purple-200 mt-1">
-                          Pay Out
-                        </button>
+                        <div className="flex items-center gap-1 mt-1">
+                          <button onClick={() => { setDepositForm({ category: pot.category, amount: "", notes: "" }); setShowDepositDialog(true); }}
+                            className="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold hover:bg-green-200">
+                            + Add
+                          </button>
+                          <button onClick={() => { setPayoutForm({ category: pot.category, amount: "", notes: "" }); setShowPayoutDialog(true); }}
+                            className="text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-bold hover:bg-purple-200">
+                            Pay Out
+                          </button>
+                          <button onClick={async () => {
+                            if (!confirm(`Delete "${pot.category}" fund? This will remove all transaction history for this fund.`)) return;
+                            try {
+                              await fundsAPI.deletePot(pot._id);
+                              fetchFunds();
+                            } catch (err) { alert(err.message || "Failed to delete"); }
+                          }}
+                            className="text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded-full font-bold hover:bg-red-200">
+                            <HiTrash className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                     {/* Progress bar */}
@@ -916,6 +946,86 @@ export default function CashBookPage() {
               }} disabled={payingOut || !payoutForm.amount}
                 className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50">
                 {payingOut ? "Processing..." : "Pay Out"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Fund Dialog */}
+      {showAddFundDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAddFundDialog(false)}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold mb-4">Add New Fund</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Fund Name</label>
+                <input type="text" value={addFundForm.category} onChange={(e) => setAddFundForm({...addFundForm, category: e.target.value})}
+                  placeholder="e.g. Rent, EB, Gas" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" autoFocus />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Initial Amount (optional)</label>
+                <input type="number" value={addFundForm.initialAmount} onChange={(e) => setAddFundForm({...addFundForm, initialAmount: e.target.value})}
+                  placeholder={"\u20B9 0"} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowAddFundDialog(false)} className="flex-1 py-3 border border-gray-300 rounded-xl font-bold text-gray-600">Cancel</button>
+              <button onClick={async () => {
+                if (!addFundForm.category.trim()) return;
+                setAddingFund(true);
+                try {
+                  await fundsAPI.createPot({ category: addFundForm.category.trim(), initialAmount: parseFloat(addFundForm.initialAmount) || 0 });
+                  setShowAddFundDialog(false);
+                  setAddFundForm({ category: "", initialAmount: "" });
+                  fetchFunds();
+                } catch (err) { alert(err.message || "Failed to create fund"); }
+                setAddingFund(false);
+              }} disabled={addingFund || !addFundForm.category.trim()}
+                className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50">
+                {addingFund ? "Creating..." : "Create Fund"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deposit Dialog */}
+      {showDepositDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowDepositDialog(false)}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold mb-1">Add to Fund</h3>
+            <p className="text-xs text-gray-400 mb-4">Adding to <span className="font-bold text-green-700">{depositForm.category}</span> pot</p>
+            <div className="mb-3">
+              <label className="text-xs font-bold text-gray-500 uppercase">Current Balance</label>
+              <p className="text-xl font-bold text-purple-700">{"\u20B9"}{(fundPots.find(p => p.category === depositForm.category)?.balance || 0).toLocaleString("en-IN")}</p>
+            </div>
+            <div className="mb-3">
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount to Add</label>
+              <input type="number" value={depositForm.amount} onChange={(e) => setDepositForm({...depositForm, amount: e.target.value})}
+                className="w-full p-3 border-2 border-gray-300 rounded-xl text-xl font-bold text-center focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none" autoFocus />
+            </div>
+            <div className="mb-4">
+              <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Notes</label>
+              <input type="text" value={depositForm.notes} onChange={(e) => setDepositForm({...depositForm, notes: e.target.value})}
+                placeholder="e.g. Extra savings" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setShowDepositDialog(false)} className="flex-1 py-3 border border-gray-300 rounded-xl font-bold text-gray-600">Cancel</button>
+              <button onClick={async () => {
+                const amount = parseFloat(depositForm.amount);
+                if (!amount || amount <= 0) return;
+                setDepositing(true);
+                try {
+                  await fundsAPI.deposit({ category: depositForm.category, amount, notes: depositForm.notes });
+                  setShowDepositDialog(false);
+                  setDepositForm({ category: "", amount: "", notes: "" });
+                  fetchFunds();
+                } catch (err) { alert(err.message || "Deposit failed"); }
+                setDepositing(false);
+              }} disabled={depositing || !depositForm.amount}
+                className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50">
+                {depositing ? "Adding..." : "Add Funds"}
               </button>
             </div>
           </div>

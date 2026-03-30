@@ -330,6 +330,9 @@ export const cashbookAPI = {
 // Funds
 export const fundsAPI = {
   getPots: () => apiFetch("/api/funds/pots"),
+  createPot: (body) => apiFetch("/api/funds/pots", { method: "POST", body: JSON.stringify(body) }),
+  deletePot: (id) => apiFetch(`/api/funds/pots/${id}`, { method: "DELETE" }),
+  deposit: (body) => apiFetch("/api/funds/deposit", { method: "POST", body: JSON.stringify(body) }),
   allocateDaily: (date) => apiFetch("/api/funds/allocate-daily", { method: "POST", body: JSON.stringify({ date }) }),
   payout: (body) => apiFetch("/api/funds/payout", { method: "POST", body: JSON.stringify(body) }),
   transactions: (params) => {

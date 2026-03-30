@@ -99,6 +99,92 @@ router.post("/payout", verifyToken, roleCheck("admin", "manager"), asyncHandler(
   res.json({ success: true, data: pot });
 }));
 
+// POST /api/funds/pots — Create a new fund pot
+router.post("/pots", verifyToken, roleCheck("admin", "manager"), asyncHandler(async (req, res) => {
+  const { category, initialAmount } = req.body;
+  if (!category || !category.trim()) {
+    return res.status(400).json({ success: false, error: "Fund name is required" });
+  }
+
+  const existing = await FundPot.findOne({ category: category.trim() });
+  if (existing) {
+    return res.status(400).json({ success: false, error: "Fund with this name already exists" });
+  }
+
+  const amount = parseFloat(initialAmount) || 0;
+  const pot = await FundPot.create({
+    category: category.trim(),
+    balance: amount,
+    totalAllocated: amount,
+    totalPaidOut: 0,
+  });
+
+  if (amount > 0) {
+    await FundTransaction.create({
+      potCategory: pot.category,
+      type: "allocation",
+      amount,
+      date: getISTToday(),
+      notes: "Initial deposit",
+      balanceAfter: pot.balance,
+      userId: req.user?.id,
+    });
+  }
+
+  await logAudit({ action: "create", entity: "FundPot", entityId: pot._id, user: req.user, details: { category: pot.category, initialAmount: amount } });
+
+  res.status(201).json({ success: true, data: pot });
+}));
+
+// DELETE /api/funds/pots/:id — Delete a fund pot
+router.delete("/pots/:id", verifyToken, roleCheck("admin"), asyncHandler(async (req, res) => {
+  const pot = await FundPot.findByIdAndDelete(req.params.id);
+  if (!pot) {
+    return res.status(404).json({ success: false, error: "Fund pot not found" });
+  }
+
+  // Also delete related transactions
+  await FundTransaction.deleteMany({ potCategory: pot.category });
+
+  await logAudit({ action: "delete", entity: "FundPot", entityId: req.params.id, user: req.user, details: { category: pot.category } });
+
+  res.json({ success: true, message: "Fund pot deleted" });
+}));
+
+// POST /api/funds/deposit — Manually add funds to a pot
+router.post("/deposit", verifyToken, roleCheck("admin", "manager"), asyncHandler(async (req, res) => {
+  const { category, amount, notes } = req.body;
+
+  if (!category || !amount || amount <= 0) {
+    return res.status(400).json({ success: false, error: "Category and positive amount required" });
+  }
+
+  const pot = await FundPot.findOne({ category });
+  if (!pot) {
+    return res.status(404).json({ success: false, error: "Fund pot not found" });
+  }
+
+  pot.balance += amount;
+  pot.totalAllocated += amount;
+  await pot.save();
+
+  const dateStr = getISTToday();
+
+  await FundTransaction.create({
+    potCategory: category,
+    type: "allocation",
+    amount,
+    date: dateStr,
+    notes: notes || "Manual deposit",
+    balanceAfter: pot.balance,
+    userId: req.user?.id,
+  });
+
+  await logAudit({ action: "fund-deposit", entity: "FundPot", entityId: pot._id, user: req.user, details: { category, amount } });
+
+  res.json({ success: true, data: pot });
+}));
+
 // GET /api/funds/transactions — Get fund transaction history
 router.get("/transactions", verifyToken, asyncHandler(async (req, res) => {
   const { category, limit = 50, skip = 0 } = req.query;
