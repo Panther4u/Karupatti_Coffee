@@ -2606,7 +2606,7 @@ function ProductsPopup({ onClose, onProductsChanged }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ name: "", price: "", purchaseRate: "", type: "", description: "", imageUrl: "" });
+  const [form, setForm] = useState({ name: "", price: "", purchaseRate: "", mrp: "", type: "", description: "", imageUrl: "", isAvailable: true });
   const [msg, setMsg] = useState("");
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("");
@@ -2615,20 +2615,20 @@ function ProductsPopup({ onClose, onProductsChanged }) {
 
   const fetchItems = async () => {
     try {
-      const data = await productsAPI.getAll({ available: true });
+      const data = await productsAPI.getAll();
       setItems(Array.isArray(data) ? data.map((i) => ({ ...i, id: i._id || i.id })) : []);
     } catch {} finally { setLoading(false); }
   };
 
   useEffect(() => { fetchItems(); }, []);
 
-  const resetForm = () => { setForm({ name: "", price: "", purchaseRate: "", type: "", description: "", imageUrl: "" }); setEditId(null); setShowForm(false); };
+  const resetForm = () => { setForm({ name: "", price: "", purchaseRate: "", mrp: "", type: "", description: "", imageUrl: "", isAvailable: true }); setEditId(null); setShowForm(false); };
 
   const handleSubmit = async () => {
     if (!form.name || !form.price || !form.type) { setMsg("Name, price, category required"); return; }
     setMsg("");
     try {
-      const body = { ...form, price: Number(form.price), purchaseRate: Number(form.purchaseRate || 0), type: Number(form.type) };
+      const body = { ...form, price: Number(form.price), purchaseRate: Number(form.purchaseRate || 0), mrp: Number(form.mrp || 0), type: Number(form.type), isAvailable: form.isAvailable };
       if (editId) { await productsAPI.update(editId, body); } else { await productsAPI.create(body); }
       setMsg(editId ? "Updated!" : "Added!"); resetForm(); fetchItems(); if (onProductsChanged) onProductsChanged(); setTimeout(() => setMsg(""), 2000);
     } catch (err) { setMsg(err.message || "Error saving"); }
@@ -2641,7 +2641,7 @@ function ProductsPopup({ onClose, onProductsChanged }) {
   };
 
   const startEdit = (p) => {
-    setEditId(p.id); setForm({ name: p.name, price: p.price, purchaseRate: p.purchaseRate || 0, type: p.type, description: p.description || "", imageUrl: p.imageUrl || "" });
+    setEditId(p.id); setForm({ name: p.name, price: p.price, purchaseRate: p.purchaseRate || 0, mrp: p.mrp || 0, type: p.type, description: p.description || "", imageUrl: p.imageUrl || "", isAvailable: p.isAvailable !== false });
     setShowForm(true);
   };
 
@@ -2687,10 +2687,23 @@ function ProductsPopup({ onClose, onProductsChanged }) {
                   <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="50" className={ic} /></div>
                 <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Purchase/Cost Price (₹)</label>
                   <input type="number" value={form.purchaseRate} onChange={(e) => setForm({ ...form, purchaseRate: e.target.value })} placeholder="20" className={ic} /></div>
-                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Image URL</label>
-                  <input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://..." className={ic} /></div>
+                <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">MRP (₹)</label>
+                  <input type="number" value={form.mrp} onChange={(e) => setForm({ ...form, mrp: e.target.value })} placeholder="60" className={ic} /></div>
                 <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Description</label>
                   <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Short description" className={ic} /></div>
+                <div className="sm:col-span-2"><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Image URL</label>
+                  <div className="flex gap-2 items-center">
+                    <input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://..." className={`${ic} flex-1`} />
+                    {form.imageUrl && <img src={form.imageUrl} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 flex-shrink-0" onError={(e) => { e.target.style.display = "none"; }} />}
+                  </div></div>
+                <div className="flex items-center gap-2 sm:col-span-2">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Available</label>
+                  <button type="button" onClick={() => setForm({ ...form, isAvailable: !form.isAvailable })}
+                    className={`w-10 h-5 rounded-full transition relative ${form.isAvailable ? "bg-green-500" : "bg-gray-300"}`}>
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition ${form.isAvailable ? "left-5" : "left-0.5"}`} />
+                  </button>
+                  <span className={`text-xs font-semibold ${form.isAvailable ? "text-green-600" : "text-red-500"}`}>{form.isAvailable ? "Active" : "Hidden"}</span>
+                </div>
               </div>
               {/* Profit preview */}
               {form.price && form.purchaseRate && (
@@ -2734,8 +2747,9 @@ function ProductsPopup({ onClose, onProductsChanged }) {
                 const margin = p.price > 0 ? (profit / p.price * 100).toFixed(0) : 0;
                 return (
                   <div key={p.id} className="grid grid-cols-12 gap-2 items-center px-3 py-2 bg-white border border-gray-100 rounded-lg hover:border-gray-300 transition">
-                    <div className="col-span-12 sm:col-span-4 min-w-0">
-                      <p className="font-semibold text-sm text-gray-900 truncate">{p.name}</p>
+                    <div className="col-span-12 sm:col-span-4 min-w-0 flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.isAvailable !== false ? "bg-green-500" : "bg-red-400"}`} />
+                      <p className={`font-semibold text-sm truncate ${p.isAvailable !== false ? "text-gray-900" : "text-gray-400 line-through"}`}>{p.name}</p>
                     </div>
                     <div className="col-span-4 sm:col-span-2">
                       <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{cats[p.type] || "Other"}</span>

@@ -5,7 +5,8 @@ const { verifyToken } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
 const { logAudit } = require("../config/audit");
 
-// GET /api/products — list all products (public, but hide purchaseRate for unauthenticated)
+// GET /api/products — list all products
+// Authenticated: all fields. Unauthenticated: hide purchaseRate.
 router.get(
   "/",
   asyncHandler(async (req, res) => {
@@ -14,9 +15,20 @@ router.get(
     if (category) filter.type = Number(category);
     if (available !== undefined) filter.isAvailable = available === "true";
 
-    const products = await Product.find(filter)
-      .select("-purchaseRate")
-      .sort({ type: 1, name: 1 });
+    // Check if authenticated (optional auth)
+    let authenticated = false;
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const jwt = require("jsonwebtoken");
+        jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET);
+        authenticated = true;
+      }
+    } catch {}
+
+    const query = Product.find(filter).sort({ type: 1, name: 1 });
+    if (!authenticated) query.select("-purchaseRate");
+    const products = await query;
     res.json({ success: true, data: products });
   })
 );
