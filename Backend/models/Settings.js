@@ -23,6 +23,8 @@ const settingsSchema = new mongoose.Schema(
     autoPrintBill: { type: Boolean, default: false },
     autoPrintKOT: { type: Boolean, default: false },
     soundEnabled: { type: Boolean, default: true },
+    productCategories: [{ type: String }],
+    expenseCategories: [{ type: String }],
     fixedDailyExpenses: [{
       category: { type: String, required: true },
       amount: { type: Number, required: true, min: 0 },
@@ -33,16 +35,23 @@ const settingsSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const DEFAULT_PRODUCT_CATEGORIES = ["Tea","Coffee","Dairy Products","Snacks","Evening Special","Fresh Juice","Cool Drinks","Ice Cream","Karupatti Ice Cream","Karupatti Snacks","Other Snacks","Biscuits & Cakes","Parcel"];
+const DEFAULT_EXPENSE_CATEGORIES = ["Milk","Curd","Grocery & Vegetables","Essential Items","Samosa","Puffs","Water","Wastage","Other","Salary","Rent","EB","Gas"];
+
 settingsSchema.statics.getSettings = async function () {
   let s = await this.findOne();
   if (!s) {
     try {
-      s = await this.create({});
+      s = await this.create({ productCategories: DEFAULT_PRODUCT_CATEGORIES, expenseCategories: DEFAULT_EXPENSE_CATEGORIES });
     } catch (e) {
-      // Another request may have created it concurrently
       s = await this.findOne();
     }
   }
+  // Backfill if arrays are empty (existing installs)
+  let needSave = false;
+  if (!s.productCategories || s.productCategories.length === 0) { s.productCategories = DEFAULT_PRODUCT_CATEGORIES; needSave = true; }
+  if (!s.expenseCategories || s.expenseCategories.length === 0) { s.expenseCategories = DEFAULT_EXPENSE_CATEGORIES; needSave = true; }
+  if (needSave) await s.save();
   return s;
 };
 

@@ -3,9 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { HiArrowLeft, HiCash, HiTrendingUp, HiTrendingDown, HiLockClosed, HiLockOpen, HiRefresh, HiPlus, HiPencil, HiTrash, HiCheckCircle, HiCreditCard } from "react-icons/hi";
-import { cashbookAPI, expensesAPI, authAPI, fundsAPI } from "@/app/lib/api";
+import { cashbookAPI, expensesAPI, authAPI, fundsAPI, settingsAPI } from "@/app/lib/api";
 import { getISTToday } from "@/app/lib/dateUtils";
 import { offlineAuthCheck } from "@/app/lib/authUtils";
+
+const DEFAULT_EXPENSE_CATS = ["Milk","Curd","Grocery & Vegetables","Essential Items","Samosa","Puffs","Water","Wastage","Other","Salary","Rent","EB","Gas"];
 
 const DENOMINATIONS = [
   { key: "n2000", label: "₹2000", value: 2000 },
@@ -61,10 +63,28 @@ export default function CashBookPage() {
   const [selectedPot, setSelectedPot] = useState(null);
   const [fundsLoading, setFundsLoading] = useState(false);
 
+  // Dynamic expense categories
+  const [expenseCats, setExpenseCats] = useState(DEFAULT_EXPENSE_CATS);
+  const [newExpCat, setNewExpCat] = useState("");
+  const [showAddExpCat, setShowAddExpCat] = useState(false);
+
   // Auth check (offline-safe)
   useEffect(() => {
-    offlineAuthCheck(authAPI, router).then((user) => { if (user) setIsAuth(true); });
+    offlineAuthCheck(authAPI, router).then((user) => {
+      if (user) setIsAuth(true);
+      settingsAPI.get().then((s) => { if (s?.expenseCategories?.length) setExpenseCats(s.expenseCategories); }).catch(() => {});
+    });
   }, [router]);
+
+  const addExpenseCategory = async () => {
+    const name = newExpCat.trim();
+    if (!name || expenseCats.includes(name)) { setNewExpCat(""); setShowAddExpCat(false); return; }
+    const updated = [...expenseCats, name];
+    try { await settingsAPI.update({ expenseCategories: updated }); } catch {}
+    setExpenseCats(updated);
+    setExpenseForm({ ...expenseForm, category: name });
+    setNewExpCat(""); setShowAddExpCat(false);
+  };
 
   // Load data
   const fetchData = useCallback(async () => {
@@ -783,8 +803,21 @@ export default function CashBookPage() {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Category</label>
-                <input type="text" value={expenseForm.category} onChange={(e) => setExpenseForm({...expenseForm, category: e.target.value})}
-                  placeholder="e.g. Grocery, Milk, Wages..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                <select value={expenseForm.category} onChange={(e) => { if (e.target.value === "__add__") { setShowAddExpCat(true); } else { setExpenseForm({...expenseForm, category: e.target.value}); }}}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                  <option value="">Select category</option>
+                  {expenseCats.map((c) => <option key={c} value={c}>{c}</option>)}
+                  <option value="__add__">+ Add New...</option>
+                </select>
+                {showAddExpCat && (
+                  <div className="flex gap-2 mt-2">
+                    <input type="text" value={newExpCat} onChange={(e) => setNewExpCat(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addExpenseCategory(); }}}
+                      placeholder="New category name" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" autoFocus />
+                    <button onClick={addExpenseCategory} className="px-3 py-2 bg-coffee text-white rounded-lg text-xs font-bold">Add</button>
+                    <button onClick={() => { setShowAddExpCat(false); setNewExpCat(""); }} className="px-2 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs">✕</button>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Amount</label>
