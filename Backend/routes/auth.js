@@ -199,7 +199,8 @@ router.get(
   verifyToken,
   roleCheck("admin", "manager"),
   asyncHandler(async (req, res) => {
-    const users = await Admin.find().select("-passwordHash").sort({ createdAt: -1 });
+    const users = await Admin.find().select("-passwordHash").sort({ createdAt: -1 }).lean();
+    // Ensure passcode is included in the response
     res.json({ success: true, data: users });
   })
 );
@@ -209,7 +210,7 @@ router.post(
   verifyToken,
   roleCheck("admin", "manager"),
   asyncHandler(async (req, res) => {
-    const { username, password, role } = req.body;
+    const { username, password, role, passcode } = req.body;
     if (!username || !password) {
       return res.status(400).json({ success: false, error: "Username and password required" });
     }
@@ -222,15 +223,26 @@ router.post(
       return res.status(409).json({ success: false, error: "Username already exists" });
     }
 
-    const user = await Admin.create({
+    // Check passcode uniqueness
+    if (passcode && passcode.trim()) {
+      const pcExists = await Admin.findOne({ passcode: passcode.trim() });
+      if (pcExists) {
+        return res.status(409).json({ success: false, error: "Passcode already in use by another user" });
+      }
+    }
+
+    const userData = {
       username: username.toLowerCase().trim(),
       passwordHash: password,
       role: role || "cashier",
-    });
+    };
+    if (passcode && passcode.trim()) userData.passcode = passcode.trim();
+
+    const user = await Admin.create(userData);
 
     await logAudit({ action: "create-user", entity: "Admin", entityId: user._id, user: req.user, details: { username: user.username, role: user.role } });
 
-    res.status(201).json({ success: true, data: { id: user._id, username: user.username, role: user.role } });
+    res.status(201).json({ success: true, data: { id: user._id, username: user.username, role: user.role, passcode: user.passcode } });
   })
 );
 
@@ -239,7 +251,7 @@ router.put(
   verifyToken,
   roleCheck("admin", "manager"),
   asyncHandler(async (req, res) => {
-    const { username, role, password } = req.body;
+    const { username, role, password, passcode } = req.body;
     const user = await Admin.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ success: false, error: "User not found" });
@@ -258,11 +270,23 @@ router.put(
       }
       user.passwordHash = password;
     }
+    // Update passcode (allow setting or clearing)
+    if (passcode !== undefined) {
+      if (passcode && passcode.trim()) {
+        const pcExists = await Admin.findOne({ passcode: passcode.trim(), _id: { $ne: user._id } });
+        if (pcExists) {
+          return res.status(409).json({ success: false, error: "Passcode already in use by another user" });
+        }
+        user.passcode = passcode.trim();
+      } else {
+        user.passcode = undefined;
+      }
+    }
     await user.save();
 
     await logAudit({ action: "update-user", entity: "Admin", entityId: user._id, user: req.user });
 
-    res.json({ success: true, data: { id: user._id, username: user.username, role: user.role } });
+    res.json({ success: true, data: { id: user._id, username: user.username, role: user.role, passcode: user.passcode } });
   })
 );
 

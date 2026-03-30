@@ -2257,7 +2257,7 @@ function StaffManagementSection() {
   const [currentUser, setCurrentUser] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ username: "", password: "", role: "cashier" });
+  const [form, setForm] = useState({ username: "", password: "", role: "cashier", passcode: "" });
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
@@ -2278,16 +2278,16 @@ function StaffManagementSection() {
     if (!form.username) { setMsg("Username required"); return; }
     try {
       if (editId) {
-        const data = { username: form.username, role: form.role };
+        const data = { username: form.username, role: form.role, passcode: form.passcode || "" };
         if (form.password && form.password.length >= 6) data.password = form.password;
         await authAPI.updateUser(editId, data);
         setMsg("Updated!");
       } else {
         if (!form.password || form.password.length < 6) { setMsg("Password min 6 chars"); return; }
-        await authAPI.createUser(form);
+        await authAPI.createUser({ ...form });
         setMsg("Created!");
       }
-      setShowAdd(false); setEditId(null); setForm({ username: "", password: "", role: "cashier" });
+      setShowAdd(false); setEditId(null); setForm({ username: "", password: "", role: "cashier", passcode: "" });
       await refresh();
       setTimeout(() => setMsg(""), 2000);
     } catch (err) { setMsg(err.message || "Failed"); }
@@ -2301,7 +2301,7 @@ function StaffManagementSection() {
 
   const startEdit = (u) => {
     setEditId(u._id || u.id);
-    setForm({ username: u.username, password: "", role: u.role });
+    setForm({ username: u.username, password: "", role: u.role, passcode: u.passcode || "" });
     setShowAdd(true);
   };
 
@@ -2328,7 +2328,7 @@ function StaffManagementSection() {
     <div className="border-t border-gray-200 pt-5 mt-2">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-xs font-bold text-gray-500 uppercase">Staff ({users.length})</h3>
-        <button onClick={() => { setShowAdd(!showAdd); setEditId(null); setForm({ username: "", password: "", role: "cashier" }); }}
+        <button onClick={() => { setShowAdd(!showAdd); setEditId(null); setForm({ username: "", password: "", role: "cashier", passcode: "" }); }}
           className="text-[10px] font-bold text-coffee hover:underline">{showAdd ? "Cancel" : "+ Add Staff"}</button>
       </div>
 
@@ -2341,6 +2341,9 @@ function StaffManagementSection() {
             <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="staff_name" className={ic} /></div>
           <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">{editId ? "New Password (leave blank to keep)" : "Password"}</label>
             <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={editId ? "Leave blank to keep" : "Min 6 chars"} className={ic} /></div>
+          <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Passcode (PIN Login)</label>
+            <input value={form.passcode} onChange={(e) => setForm({ ...form, passcode: e.target.value.replace(/[^0-9]/g, "").slice(0, 6) })} placeholder="e.g. 1234" inputMode="numeric" maxLength={6} className={ic} />
+            <p className="text-[9px] text-gray-400 mt-0.5">Quick PIN login (4-6 digits)</p></div>
           <div><label className="block text-[10px] font-bold text-gray-400 mb-0.5 uppercase">Role</label>
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className={ic}>
               <option value="cashier">Cashier</option>
@@ -2362,9 +2365,10 @@ function StaffManagementSection() {
           {users.map((u) => (
             <div key={u._id || u.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-2.5">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-semibold text-gray-900">{u.username}</span>
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${roleColors[u.role] || "bg-gray-100 text-gray-600"}`}>{u.role}</span>
+                  {u.passcode && <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-coffee/10 text-coffee">PIN: {u.passcode}</span>}
                   {currentUser && (u._id === currentUser.id || u.id === currentUser.id) && <span className="text-[9px] text-gray-400">(you)</span>}
                 </div>
                 {u.lastLogin && <p className="text-[10px] text-gray-400">Last: {new Date(u.lastLogin).toLocaleString("en-IN")}</p>}
